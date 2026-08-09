@@ -517,7 +517,7 @@ func (db *RealDB) GetPendingPickupRequests(distributorID string) ([]models.Pendi
 	}
 	defer rows.Close()
 
-	var requests []models.PendingPickupRequest
+	requests := []models.PendingPickupRequest{}
 	var requestIDs []string
 
 	for rows.Next() {
@@ -594,7 +594,7 @@ func (db *RealDB) GetUnacceptedPickupRequests(salesAssociateID string) ([]models
 	}
 	defer rows.Close()
 
-	var requests []models.PendingPickupRequest
+	requests := []models.PendingPickupRequest{}
 	var requestIDs []string
 
 	for rows.Next() {
