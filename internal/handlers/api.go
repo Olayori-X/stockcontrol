@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	admin "github.com/Olayori-X/stock-control-backend/internal/handlers/admin"
 	product "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/products"
 	auth "github.com/Olayori-X/stock-control-backend/internal/handlers/auth"
 	general "github.com/Olayori-X/stock-control-backend/internal/handlers/general"
@@ -30,6 +31,7 @@ func Handler(r *chi.Mux) {
 		router.Delete("/deleteproduct", product.DeleteProductHandler)
 		router.Get("/search", general.SearchUsersHandler)
 		router.Post("/changepassword", auth.ChangePasswordHandler)
+		router.Get("/users", admin.GetUsersHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {
