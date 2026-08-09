@@ -32,6 +32,9 @@ func (db *RealDB) SetupDatabase() error {
 	CreateUserTable(dbpointer)
 	CreateLoggedInUserTable(dbpointer)
 	CreateForgotPasswordTable(dbpointer)
+	CreatePickupRequestTable(dbpointer)
+	CreatePickupRequestItemsTable(dbpointer)
+	CreateProductTable(dbpointer)
 	// AlterUsersTable(dbpointer)
 	// DeleteUserTable(dbpointer)
 	return nil
