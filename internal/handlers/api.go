@@ -15,6 +15,7 @@ func Handler(r *chi.Mux) {
 
 	r.Route("/auth", func(router chi.Router) {
 		router.Post("/login", auth.LoginHandler)
+		router.Post("/signup", auth.SignupHandler)
 	})
 
 	r.Route("/admin", func(router chi.Router) {
@@ -27,7 +28,6 @@ func Handler(r *chi.Mux) {
 		router.Put("/editproduct", product.EditProductHandler)
 		router.Delete("/deleteproduct", product.DeleteProductHandler)
 		router.Get("/search", general.SearchUsersHandler)
-		router.Post("/signup", auth.SignupHandler)
 		router.Post("/changepassword", auth.ChangePasswordHandler)
 	})
 
