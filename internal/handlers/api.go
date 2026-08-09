@@ -22,6 +22,7 @@ func Handler(r *chi.Mux) {
 		// Middle ware for /account authorization
 		router.Use(middleware.Authorization)
 		router.Use(middleware.RequireRole("admin"))
+		router.Post("/signup", auth.SignupHandler)
 		router.Post("/addproduct", product.AddProductHandler)
 		router.Get("/products", product.GetProductsHandler)
 		router.Get("/productbysku", product.GetProductBySKUHandler)
