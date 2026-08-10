@@ -293,6 +293,7 @@ func (db *RealDB) SearchDistributors(query string) ([]models.User, error) {
 	`, "%"+query+"%")
 
 	if err != nil {
+		log.Error("Error searching users: ", err)
 		return nil, fmt.Errorf("error searching users: %w", err)
 	}
 	defer rows.Close()
@@ -307,9 +308,10 @@ func (db *RealDB) SearchDistributors(query string) ([]models.User, error) {
 		users = append(users, u)
 	}
 
-	fmt.Printf("Found distributors: %v", users)
+	log.Printf("Found distributors: %v", users)
 
 	if err := rows.Err(); err != nil {
+		log.Error("Error iterating over rows: ", err)
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
