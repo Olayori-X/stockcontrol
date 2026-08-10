@@ -23,7 +23,7 @@ func main() {
 
 	// ✅ Add CORS middleware
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "https://fameduel.vercel.app"}, // Frontend domains
+		AllowedOrigins:   []string{"http://localhost:3000", "https://scs-kappa.vercel.app/"}, // Frontend domains
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "userid", "username"},
 		ExposedHeaders:   []string{"Link"},
