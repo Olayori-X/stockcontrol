@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -293,7 +294,6 @@ func (db *RealDB) SearchDistributors(query string) ([]models.User, error) {
 	`, "%"+query+"%")
 
 	if err != nil {
-		log.Error("Error searching users: ", err)
 		return nil, fmt.Errorf("error searching users: %w", err)
 	}
 	defer rows.Close()
@@ -308,10 +308,7 @@ func (db *RealDB) SearchDistributors(query string) ([]models.User, error) {
 		users = append(users, u)
 	}
 
-	log.Printf("Found distributors: %v", users)
-
 	if err := rows.Err(); err != nil {
-		log.Error("Error iterating over rows: ", err)
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
@@ -377,12 +374,40 @@ func (db *RealDB) CreatePickupRequest(req *models.PickupRequest) error {
 	return nil
 }
 
-func appendPickupRequestToSheet(req *models.PickupRequest, salesAssociateName, distributorName string) error {
-	ctx := context.Background()
+var (
+	sheetsClient     *sheets.Service
+	sheetsClientOnce sync.Once
+	sheetsClientErr  error
+)
 
-	srv, err := sheets.NewService(ctx, option.WithCredentialsFile(os.Getenv("GOOGLE_SHEETS_CREDENTIALS_PATH")))
+// getSheetsClient returns a shared Sheets client, creating it once on first
+// use and reusing it for every subsequent call — avoids reconnecting on
+// every pickup request created or confirmed.
+func getSheetsClient() (*sheets.Service, error) {
+	sheetsClientOnce.Do(func() {
+		credsJSON := os.Getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
+		if credsJSON == "" {
+			sheetsClientErr = fmt.Errorf("GOOGLE_SHEETS_CREDENTIALS_JSON is not set")
+			return
+		}
+
+		ctx := context.Background()
+		client, err := sheets.NewService(ctx, option.WithCredentialsJSON([]byte(credsJSON)))
+		if err != nil {
+			sheetsClientErr = fmt.Errorf("could not create sheets client: %w", err)
+			return
+		}
+
+		sheetsClient = client
+	})
+
+	return sheetsClient, sheetsClientErr
+}
+
+func appendPickupRequestToSheet(req *models.PickupRequest, salesAssociateName, distributorName string) error {
+	srv, err := getSheetsClient()
 	if err != nil {
-		return fmt.Errorf("could not create sheets client: %w", err)
+		return err
 	}
 
 	spreadsheetID := os.Getenv("PICKUP_REQUESTS_SPREADSHEET_ID")
@@ -450,11 +475,9 @@ func (db *RealDB) ConfirmPickupRequest(requestID, distributorID string) (bool, e
 }
 
 func updateConfirmedInSheet(requestID string) error {
-	ctx := context.Background()
-
-	srv, err := sheets.NewService(ctx, option.WithCredentialsFile(os.Getenv("GOOGLE_SHEETS_CREDENTIALS_PATH")))
+	srv, err := getSheetsClient()
 	if err != nil {
-		return fmt.Errorf("could not create sheets client: %w", err)
+		return err
 	}
 
 	spreadsheetID := os.Getenv("PICKUP_REQUESTS_SPREADSHEET_ID")
