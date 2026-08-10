@@ -13,7 +13,7 @@ import (
 
 func SearchDistributorsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("SearchDistributorsHandler called")
-	query := r.URL.Query().Get("q")
+	query := r.URL.Query().Get("query")
 	if query == "" {
 		api.RequestErrorHandler(w, errors.New("search query cannot be empty"))
 		return
