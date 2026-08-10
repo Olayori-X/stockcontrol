@@ -307,6 +307,8 @@ func (db *RealDB) SearchDistributors(query string) ([]models.User, error) {
 		users = append(users, u)
 	}
 
+	fmt.Printf("Found distributors: %v", users)
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
