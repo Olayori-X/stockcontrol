@@ -287,7 +287,6 @@ func (db *RealDB) SearchDistributors(query string, excludeID string) ([]models.U
 			user_id, name
 		FROM users
 		WHERE LOWER(name) LIKE LOWER($1)
-		AND user_id != $2
 		AND verified = TRUE
 		AND role = 'distributor'
 		LIMIT 20
