@@ -40,7 +40,7 @@ type DatabaseInterface interface {
 	ChangeUserPassword(email string, hashedPassword string) error
 	CreatePickupRequest(req *models.PickupRequest) error
 	ConfirmPickupRequest(requestID, distributorID string) (bool, error)
-	SearchDistributors(query string, excludeID string) ([]models.User, error)
+	SearchDistributors(query string) ([]models.User, error)
 	GetPendingPickupRequests(distributorID string) ([]models.PendingPickupRequest, error)
 	GetUnacceptedPickupRequests(salesAssociateID string) ([]models.PendingPickupRequest, error)
 	AddProduct(product models.Products) error

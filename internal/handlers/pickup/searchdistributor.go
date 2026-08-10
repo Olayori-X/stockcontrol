@@ -19,9 +19,6 @@ func SearchDistributorsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Exclude the authenticated user from results
-	callerID := r.Header.Get("userid")
-
 	database, err := sqltools.NewDatabase()
 	if err != nil {
 		log.Error("Failed to connect to database: ", err)
@@ -29,7 +26,7 @@ func SearchDistributorsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := (*database).SearchDistributors(query, callerID)
+	users, err := (*database).SearchDistributors(query)
 	if err != nil {
 		log.Error("Error searching users: ", err)
 		api.InternalErrorHandler(w)

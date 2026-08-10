@@ -279,18 +279,18 @@ func (db *RealDB) SearchUsers(query string, excludeID string) ([]models.User, er
 	return users, nil
 }
 
-func (db *RealDB) SearchDistributors(query string, excludeID string) ([]models.User, error) {
+func (db *RealDB) SearchDistributors(query string) ([]models.User, error) {
 	users := make([]models.User, 0)
 
 	rows, err := db.DB.Query(`
 		SELECT
-			user_id, name
+			user_id, name, email, phone, role
 		FROM users
 		WHERE LOWER(name) LIKE LOWER($1)
 		AND verified = TRUE
 		AND role = 'distributor'
 		LIMIT 20
-	`, "%"+query+"%", excludeID)
+	`, "%"+query+"%")
 
 	if err != nil {
 		return nil, fmt.Errorf("error searching users: %w", err)
@@ -300,7 +300,7 @@ func (db *RealDB) SearchDistributors(query string, excludeID string) ([]models.U
 	for rows.Next() {
 		var u models.User
 		if err := rows.Scan(
-			&u.UserID, &u.Name,
+			&u.UserID, &u.Name, &u.Email, &u.Phone, &u.Role,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning user row: %w", err)
 		}
