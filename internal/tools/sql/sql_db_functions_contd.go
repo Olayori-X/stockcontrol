@@ -6,9 +6,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Olayori-X/stock-control-backend/api"
+	"github.com/Olayori-X/stock-control-backend/functions"
 	"github.com/Olayori-X/stock-control-backend/models"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+	log "github.com/sirupsen/logrus"
 )
 
 // PlannedOutletLocation is a lightweight projection of route_plans + outlets
@@ -409,4 +412,138 @@ func (db *RealDB) RecordOutletVisit(salesAssociateID, outletID, routeDay string,
 		return fmt.Errorf("could not record outlet visit: %w", err)
 	}
 	return nil
+}
+
+// SubmitSale attempts to record a sale. The geofence check happens inside
+// this function, at the moment of submission — it never trusts a prior
+// PASS from ConfirmOutletVisitHandler, since GPS can drift or the associate
+// can walk away between confirming a visit and submitting a sale.
+//
+// Returns (sale, alreadyExisted, blocked, error):
+//   - blocked=true, sale=nil: outside geofence, nothing was written except
+//     the outlet_visits audit row.
+//   - alreadyExisted=true: this transaction_id was already recorded (safe
+//     retry) — the original sale is returned, nothing new was inserted.
+//   - otherwise: a new sale was created and returned.
+func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput) (sale *models.Sale, alreadyExisted bool, blocked bool, err error) {
+	outlet, err := db.GetOutletByID(input.OutletID)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("could not fetch outlet: %w", err)
+	}
+	if outlet == nil || !outlet.Active {
+		return nil, false, false, fmt.Errorf("outlet not found")
+	}
+
+	radiusM, err := db.GetSettingFloat("outlet_geofence_m")
+	if err != nil {
+		return nil, false, false, fmt.Errorf("could not read outlet_geofence_m setting: %w", err)
+	}
+
+	distance := functions.HaversineMeters(input.Latitude, input.Longitude, outlet.Latitude, outlet.Longitude)
+
+	status := "FAIL"
+	if distance <= radiusM {
+		status = "PASS"
+	}
+
+	// Record the visit attempt regardless of outcome — same audit-trail
+	// principle as ConfirmOutletVisitHandler.
+	if visitErr := db.RecordOutletVisit(
+		salesAssociateID, input.OutletID, input.RouteDay,
+		input.Latitude, input.Longitude, distance, status,
+	); visitErr != nil {
+		log.Error("Failed to record outlet visit during sale submission: ", visitErr)
+		// Non-fatal: the geofence decision below doesn't depend on this
+		// write succeeding, so a sale isn't blocked purely because the
+		// audit insert had a transient failure. It is logged either way.
+	}
+
+	if status == "FAIL" {
+		return nil, false, true, nil
+	}
+
+	// Existing transaction_id → safe retry, return what's already there.
+	existing, err := db.getSaleByTransactionID(input.TransactionID)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("could not check for existing sale: %w", err)
+	}
+	if existing != nil {
+		return existing, true, false, nil
+	}
+
+	product, err := db.GetProductBySKU(input.SKU)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("could not fetch product: %w", err)
+	}
+	if product == nil {
+		return nil, false, false, fmt.Errorf("product not found for sku %s", input.SKU)
+	}
+
+	totalValue := product.Price * float64(input.Quantity)
+
+	insert := `
+		INSERT INTO sales (
+			transaction_id, sales_associate_id, outlet_id, sku, quantity,
+			unit_value, total_value, latitude, longitude,
+			distance_from_outlet_m, geofence_status, route_day, synced_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
+		ON CONFLICT (transaction_id) DO NOTHING
+		RETURNING transaction_id, sales_associate_id, outlet_id, sku, quantity,
+		          unit_value, total_value, latitude, longitude,
+		          distance_from_outlet_m, geofence_status, route_day, synced_at, created_at;
+	`
+
+	var s models.Sale
+	err = db.DB.QueryRow(
+		insert,
+		input.TransactionID, salesAssociateID, input.OutletID, input.SKU, input.Quantity,
+		product.Price, totalValue, input.Latitude, input.Longitude,
+		distance, status, input.RouteDay,
+	).Scan(
+		&s.TransactionID, &s.SalesAssociateID, &s.OutletID, &s.SKU, &s.Quantity,
+		&s.UnitValue, &s.TotalValue, &s.Latitude, &s.Longitude,
+		&s.DistanceFromOutletM, &s.GeofenceStatus, &s.RouteDay, &s.SyncedAt, &s.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Lost a race against a concurrent identical retry between our
+			// existence check above and this insert — fetch what the other
+			// request wrote and return that instead of erroring.
+			existing, fetchErr := db.getSaleByTransactionID(input.TransactionID)
+			if fetchErr != nil {
+				return nil, false, false, fmt.Errorf("could not fetch sale after conflict: %w", fetchErr)
+			}
+			if existing != nil {
+				return existing, true, false, nil
+			}
+		}
+		return nil, false, false, fmt.Errorf("could not insert sale: %w", err)
+	}
+
+	return &s, false, false, nil
+}
+
+func (db *RealDB) getSaleByTransactionID(transactionID string) (*models.Sale, error) {
+	query := `
+		SELECT transaction_id, sales_associate_id, outlet_id, sku, quantity,
+		       unit_value, total_value, latitude, longitude,
+		       distance_from_outlet_m, geofence_status, route_day, synced_at, created_at
+		FROM sales
+		WHERE transaction_id = $1;
+	`
+
+	var s models.Sale
+	err := db.DB.QueryRow(query, transactionID).Scan(
+		&s.TransactionID, &s.SalesAssociateID, &s.OutletID, &s.SKU, &s.Quantity,
+		&s.UnitValue, &s.TotalValue, &s.Latitude, &s.Longitude,
+		&s.DistanceFromOutletM, &s.GeofenceStatus, &s.RouteDay, &s.SyncedAt, &s.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not fetch sale: %w", err)
+	}
+	return &s, nil
 }
