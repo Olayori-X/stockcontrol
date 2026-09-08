@@ -3,6 +3,7 @@ package sqltools
 import (
 	"time"
 
+	"github.com/Olayori-X/stock-control-backend/api"
 	"github.com/Olayori-X/stock-control-backend/models"
 	log "github.com/sirupsen/logrus"
 )
@@ -49,6 +50,22 @@ type DatabaseInterface interface {
 	EditProduct(sku string, updated models.Products) error
 	DeleteProduct(sku string) error
 	SearchUsers(query string, excludeID string) ([]models.User, error)
+
+	GetPlannedOutletsForDay(salesAssociateID, routeDay string) ([]PlannedOutletLocation, error)
+	GetSettingFloat(key string) (float64, error)
+	RecordResumption(salesAssociateID, routeDay string, lat, lon, distanceM float64, result, deviceRef string) error
+
+	SetRoutePlan(salesAssociateID, routeDay string, outletIDs []string) error
+	GetRoutePlan(salesAssociateID, routeDay string) (*models.RoutePlan, error)
+	ApproveRoutePlan(salesAssociateID, routeDay string) (bool, error)
+
+	AddOutlet(outlet *models.Outlet) error
+	GetOutlets(includeInactive bool) ([]models.Outlet, error)
+	GetOutletByID(outletID string) (*models.Outlet, error)
+	EditOutlet(outlet *models.Outlet) (*models.Outlet, error)
+	SetOutletActive(outletID string, active bool) (bool, error)
+	RecordOutletVisit(salesAssociateID, outletID, routeDay string, lat, lon, distanceM float64, status string) error
+	SubmitSale(salesAssociateID string, input *api.SubmitSaleInput) (sale *models.Sale, alreadyExisted bool, blocked bool, err error)
 }
 
 func NewDatabase() (*DatabaseInterface, error) {

@@ -2,7 +2,9 @@ package handlers
 
 import (
 	admin "github.com/Olayori-X/stock-control-backend/internal/handlers/admin"
+	outlet "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/outlets"
 	product "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/products"
+	route "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/routes"
 	auth "github.com/Olayori-X/stock-control-backend/internal/handlers/auth"
 	general "github.com/Olayori-X/stock-control-backend/internal/handlers/general"
 	pickup "github.com/Olayori-X/stock-control-backend/internal/handlers/pickup"
@@ -32,6 +34,14 @@ func Handler(r *chi.Mux) {
 		router.Get("/search", general.SearchUsersHandler)
 		router.Post("/changepassword", auth.ChangePasswordHandler)
 		router.Get("/users", admin.GetUsersHandler)
+		router.Post("/routeplan", route.SetRoutePlanHandler)
+		router.Get("/routeplan", route.GetRoutePlanHandler)
+		router.Post("/routeplan/approve", route.ApproveRoutePlanHandler)
+		router.Post("/addoutlet", outlet.AddOutletHandler)
+		router.Get("/outlets", outlet.GetOutletsHandler)
+		router.Get("/outletbyid", outlet.GetOutletByIDHandler)
+		router.Put("/editoutlet", outlet.EditOutletHandler)
+		router.Delete("/deactivateoutlet", outlet.SetOutletActiveHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {
@@ -41,6 +51,8 @@ func Handler(r *chi.Mux) {
 		router.Get("/searchdistributor", pickup.SearchDistributorsHandler)
 		router.Get("/unacceptedrequests", pickup.GetUnacceptedPickupRequestsHandler)
 		router.Get("/products", product.GetProductsHandler)
+		router.Post("/confirmvisit", outlet.ConfirmOutletVisitHandler)
+		router.Post("/submitsale", outlet.SubmitSaleHandler)
 	})
 
 	r.Route("/distributor", func(router chi.Router) {

@@ -6,8 +6,11 @@ import (
 )
 
 type LoginParams struct {
-	Email    string
-	Password string
+	Email     string   `json:"email"`
+	Password  string   `json:"password"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+	DeviceRef string   `json:"device_ref,omitempty"`
 }
 
 type LoginResponse struct {

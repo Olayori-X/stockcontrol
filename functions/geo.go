@@ -1,0 +1,24 @@
+package functions
+
+import "math"
+
+// HaversineMeters returns the great-circle distance in meters between two
+// lat/lng points. Good enough for outlet/resumption geofencing — it doesn't
+// account for road networks, which is fine since these are proximity checks,
+// not route distance calculations.
+func HaversineMeters(lat1, lon1, lat2, lon2 float64) float64 {
+	const earthRadiusMeters = 6371000
+
+	toRad := func(deg float64) float64 { return deg * math.Pi / 180 }
+
+	dLat := toRad(lat2 - lat1)
+	dLon := toRad(lon2 - lon1)
+
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(toRad(lat1))*math.Cos(toRad(lat2))*
+			math.Sin(dLon/2)*math.Sin(dLon/2)
+
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return earthRadiusMeters * c
+}
