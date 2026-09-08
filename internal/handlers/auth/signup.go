@@ -3,10 +3,7 @@ package authhandlers
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/Olayori-X/stock-control-backend/api"
 	"github.com/Olayori-X/stock-control-backend/functions"
@@ -16,105 +13,99 @@ import (
 )
 
 func SignupHandler(w http.ResponseWriter, r *http.Request) {
-	log.Info("SignupHandler called")
-	var params = api.SignupParams{}
-	// var decoder *schema.Decoder = schema.NewDecoder()
-	var err error
-
-	err = json.NewDecoder(r.Body).Decode(&params)
-
-	if err != nil {
+	var params api.SignupParams
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 		log.Error(err)
 		api.RequestErrorHandler(w, err)
 		return
 	}
-	if strings.TrimSpace(params.Name) == "" {
-		api.RequestErrorHandler(w, errors.New("name cannot be empty"))
+
+	if params.Name == "" {
+		api.RequestErrorHandler(w, errors.New("name is required"))
+		return
+	}
+	if params.Email == "" {
+		api.RequestErrorHandler(w, errors.New("email is required"))
+		return
+	}
+	if params.Phone == "" {
+		api.RequestErrorHandler(w, errors.New("phone is required"))
+		return
+	}
+	if params.Role != "admin" && params.Role != "sales" && params.Role != "distributor" {
+		api.RequestErrorHandler(w, errors.New("role must be admin, sales, or distributor"))
 		return
 	}
 
-	if strings.TrimSpace(params.Email) == "" {
-		api.RequestErrorHandler(w, errors.New("email cannot be empty"))
-		return
+	// Password is required for every role except sales — sales associates
+	// authenticate via PIN instead, so there's nothing for them to
+	// meaningfully set a password to.
+	var passwordPtr *string
+	if params.Role != "sales" {
+		if params.Password == "" {
+			api.RequestErrorHandler(w, errors.New("password is required"))
+			return
+		}
+		hashed, err := functions.HashString(params.Password)
+		if err != nil {
+			log.Error("Failed to hash password: ", err)
+			api.InternalErrorHandler(w)
+			return
+		}
+		passwordPtr = &hashed
 	}
 
-	if strings.TrimSpace(params.Phone) == "" {
-		api.RequestErrorHandler(w, errors.New("phone cannot be empty"))
-		return
+	newUser := models.User{
+		Name:     params.Name,
+		Email:    params.Email,
+		Phone:    params.Phone,
+		Role:     params.Role,
+		Password: passwordPtr,
 	}
 
-	if strings.TrimSpace(params.Role) == "" {
-		api.RequestErrorHandler(w, errors.New("role cannot be empty"))
-		return
-	}
-
-	if strings.TrimSpace(params.Password) == "" {
-		api.RequestErrorHandler(w, errors.New("password cannot be empty"))
-		return
-	}
-
-	fmt.Printf("Received signup request: %+v\n", params)
-
-	var database *sqltools.DatabaseInterface
-	database, err = sqltools.NewDatabase()
+	database, err := sqltools.NewDatabase()
 	if err != nil {
 		log.Error("Failed to connect to database: ", err)
 		api.InternalErrorHandler(w)
 		return
 	}
 
-	hashedPassword, err := functions.HashString(params.Password)
-	if err != nil {
-		log.Error("Failed to hash password:", err)
+	if err := (*database).AddUser(&newUser); err != nil {
+		log.Error("Failed to create user: ", err)
 		api.InternalErrorHandler(w)
 		return
 	}
 
-	newUser := models.User{
-		UserID:    "userID",
-		Name:      params.Name,
-		Phone:     params.Phone,
-		Email:     params.Email,
-		Role:      params.Role,
-		Password:  hashedPassword,
-		CreatedAt: time.Now(),
+	response := api.SignupResponse{
+		UserID: newUser.UserID,
+		Name:   newUser.Name,
+		Role:   newUser.Role,
 	}
 
-	errChan := make(chan error, 2)
-	var userid string
-
-	// Add user concurrently
-	go func() {
-		var errAdd error
-		userid, errAdd = (*database).AddUser(newUser)
-		if errAdd != nil {
-			log.Error("Failed to add user: ", errAdd)
-			errChan <- errors.New("user already exists or could not be added")
+	// Sales associates get their PIN generated right here — no separate
+	// admin follow-up step needed for the account to actually be usable.
+	if newUser.Role == "sales" {
+		pin, err := functions.GenerateNumericPIN(8)
+		if err != nil {
+			log.Error("Failed to generate PIN: ", err)
+			api.InternalErrorHandler(w)
 			return
 		}
-		errChan <- nil
-	}()
-
-	// Wait for both operations to complete
-	for i := 0; i < 1; i++ {
-		if err := <-errChan; err != nil {
-			api.RequestErrorHandler(w, err)
+		hashedPin, err := functions.HashString(pin)
+		if err != nil {
+			log.Error("Failed to hash PIN: ", err)
+			api.InternalErrorHandler(w)
 			return
 		}
-	}
-
-	var response = api.SignupResponse{
-		Code:     http.StatusOK,
-		Message:  "Signup successful",
-		Username: userid,
+		if err := (*database).SetUserPIN(newUser.UserID, hashedPin); err != nil {
+			log.Error("Failed to set PIN during signup: ", err)
+			api.InternalErrorHandler(w)
+			return
+		}
+		response.PIN = pin
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(response)
-
-	if err != nil {
-		log.Error("Failed to encode response: ", err)
-		api.InternalErrorHandler(w)
-		return
-	}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
 }

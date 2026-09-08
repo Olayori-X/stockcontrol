@@ -30,7 +30,7 @@ type CoinDetails struct {
 type DatabaseInterface interface {
 	GetUserLoginDetails(username string) *LoginDetails
 	GetUserDetails(userID string) *models.User
-	AddUser(user models.User) (string, error)
+	AddUser(user *models.User) error
 	SetupDatabase() error
 	GetUsers() ([]models.User, error)
 	UpsertLoggedInUser(userID string, code string, role string) error
@@ -40,7 +40,7 @@ type DatabaseInterface interface {
 	AddForgotPasswordRecord(userID, code string) error
 	ChangeUserPassword(email string, hashedPassword string) error
 	CreatePickupRequest(req *models.PickupRequest) error
-	ConfirmPickupRequest(requestID, distributorID string) (bool, error)
+	ConfirmPickupRequest(requestID, distributorID string) (bool, *models.Invoice, error) // signature changed
 	SearchDistributors(query string) ([]models.User, error)
 	GetPendingPickupRequests(distributorID string) ([]models.PendingPickupRequest, error)
 	GetUnacceptedPickupRequests(salesAssociateID string) ([]models.PendingPickupRequest, error)
@@ -66,6 +66,18 @@ type DatabaseInterface interface {
 	SetOutletActive(outletID string, active bool) (bool, error)
 	RecordOutletVisit(salesAssociateID, outletID, routeDay string, lat, lon, distanceM float64, status string) error
 	SubmitSale(salesAssociateID string, input *api.SubmitSaleInput) (sale *models.Sale, alreadyExisted bool, blocked bool, err error)
+
+	RecordPayment(invoiceID string, amount float64) (*models.Receipt, *models.Invoice, error)
+	GetOutstandingInvoices(distributorID string) ([]models.Invoice, error)
+
+	SetUserPIN(userID, pinHash string) error
+	GetUserPINLoginDetails(userID string) *PINLoginDetails
+
+	AssignDistributor(salesAssociateID, distributorID string) error
+	UnassignDistributor(salesAssociateID, distributorID string) (bool, error)
+	GetAssignedDistributors(salesAssociateID string) ([]models.DistributorAssignment, error)
+	IsDistributorAssigned(salesAssociateID, distributorID string) (bool, error)
+	GetOutsideCoverage(salesAssociateID string, weekStart, weekEnd time.Time) (*models.OutsideCoverageReport, error)
 }
 
 func NewDatabase() (*DatabaseInterface, error) {

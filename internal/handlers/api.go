@@ -2,11 +2,13 @@ package handlers
 
 import (
 	admin "github.com/Olayori-X/stock-control-backend/internal/handlers/admin"
+	assignment "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/assignment"
 	outlet "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/outlets"
 	product "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/products"
 	route "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/routes"
 	auth "github.com/Olayori-X/stock-control-backend/internal/handlers/auth"
 	general "github.com/Olayori-X/stock-control-backend/internal/handlers/general"
+	invoice "github.com/Olayori-X/stock-control-backend/internal/handlers/invoice"
 	pickup "github.com/Olayori-X/stock-control-backend/internal/handlers/pickup"
 	middleware "github.com/Olayori-X/stock-control-backend/internal/middleware"
 	chimiddle "github.com/go-chi/chi/middleware"
@@ -19,6 +21,7 @@ func Handler(r *chi.Mux) {
 	r.Route("/auth", func(router chi.Router) {
 		router.Post("/login", auth.LoginHandler)
 		router.Post("/signup", auth.SignupHandler)
+		router.Post("/pinlogin", auth.PINLoginHandler)
 	})
 
 	r.Route("/admin", func(router chi.Router) {
@@ -42,6 +45,12 @@ func Handler(r *chi.Mux) {
 		router.Get("/outletbyid", outlet.GetOutletByIDHandler)
 		router.Put("/editoutlet", outlet.EditOutletHandler)
 		router.Delete("/deactivateoutlet", outlet.SetOutletActiveHandler)
+		router.Post("/setpin", auth.SetPINHandler)
+		router.Post("/assigndistributor", assignment.AssignDistributorHandler)
+		router.Delete("/unassigndistributor", assignment.UnassignDistributorHandler)
+		router.Get("/assigneddistributors", assignment.GetAssignedDistributorsHandler)
+
+		router.Get("/outsidecoverage", assignment.GetOutsideCoverageHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {
@@ -60,5 +69,8 @@ func Handler(r *chi.Mux) {
 		router.Use(middleware.RequireRole("distributor"))
 		router.Get("/pendingrequests", pickup.GetPendingPickupRequestsHandler)
 		router.Post("/confirmrequest", pickup.ConfirmPickupRequestHandler)
+
+		router.Post("/recordpayment", invoice.RecordPaymentHandler)
+		router.Get("/outstanding", invoice.GetOutstandingInvoicesHandler)
 	})
 }

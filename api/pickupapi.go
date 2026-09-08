@@ -36,3 +36,8 @@ func ToSearchDistributorResult(u models.User) DistributorSearchResult {
 		Role:   u.Role,
 	}
 }
+
+type RecordPaymentInput struct {
+	InvoiceID string  `json:"invoice_id"`
+	Amount    float64 `json:"amount"`
+}

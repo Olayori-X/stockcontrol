@@ -9,12 +9,25 @@ type SignupParams struct {
 }
 
 type SignupResponse struct {
-	//success code, usually 200
-	Code int `json:"code"`
+	UserID string `json:"user_id"`
+	Name   string `json:"name"`
+	Role   string `json:"role"`
+	PIN    string `json:"pin,omitempty"` // present only when role=sales
+}
 
-	//Username of the user
-	Username string `json:"username"`
+type SetPINInput struct {
+	UserID string `json:"user_id"`
+}
 
-	//Message to be displayed
-	Message string `json:"message"`
+type SetPINResponse struct {
+	UserID string `json:"user_id"`
+	PIN    string `json:"pin"` // shown once, at creation/reset time only
+}
+
+type PINLoginInput struct {
+	UserID    string   `json:"user_id"`
+	PIN       string   `json:"pin"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+	DeviceRef string   `json:"device_ref,omitempty"`
 }

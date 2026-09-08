@@ -132,6 +132,28 @@ func AlterUsersTableAddPIN(db *sql.DB) error {
 	return nil
 }
 
+// AlterUsersTableRelaxPasswordForSales makes password nullable at the
+// column level, but a CHECK still enforces it's required and non-empty
+// for every role except sales — admins/distributors still can't be
+// created without one. Run once, then leave uncalled (same convention
+// as your other Alter* migrations).
+func AlterUsersTableRelaxPasswordForSales(db *sql.DB) error {
+	statements := []string{
+		`ALTER TABLE users ALTER COLUMN password DROP NOT NULL;`,
+		`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_password_check;`,
+		`ALTER TABLE users ADD CONSTRAINT users_password_check
+			CHECK (role = 'sales' OR (password IS NOT NULL AND password <> ''));`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Fatal("Could not alter table: ", err)
+			return err
+		}
+	}
+	return nil
+}
+
 func CreateLoggedInUserTable(db *sql.DB) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS loggedin_users (

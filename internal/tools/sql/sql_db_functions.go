@@ -82,19 +82,24 @@ func (db *RealDB) GetUserLoginDetails(email string) *LoginDetails {
 	FROM users
 	WHERE email = $1;`
 
-	var user_id, password, role string
+	var userID, role string
+	var password sql.NullString // password may now be NULL for sales
 	var verified bool
 
-	err := db.DB.QueryRow(query, email).Scan(&user_id, &password, &role, &verified)
+	err := db.DB.QueryRow(query, email).Scan(&userID, &password, &role, &verified)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil
-		}
 		return nil
 	}
+
+	if !password.Valid {
+		// Sales associate with no password set — email/password login
+		// isn't available for this account; they must use PIN login.
+		return nil
+	}
+
 	return &LoginDetails{
-		UserID:   user_id,
-		Password: password,
+		UserID:   userID,
+		Password: password.String,
 		Role:     role,
 		Verified: verified,
 	}
@@ -128,34 +133,37 @@ func (db *RealDB) GetUserDetails(userid string) *models.User {
 	return &user
 }
 
-func (db *RealDB) AddUser(user models.User) (string, error) {
-	// Check if user already exists
-	exists, err := UserExists(db, user.Email)
+func (db *RealDB) AddUser(user *models.User) error {
+	userid, err := functions.GenerateUserID()
 	if err != nil {
-		return "", fmt.Errorf("error checking user: %w", err)
-	}
-	if exists {
-		return "", fmt.Errorf("user '%s' already exists", user.Email)
+		return fmt.Errorf("could not generate user id: %w", err)
 	}
 
 	query := `
-	INSERT INTO users (user_id, name, email, phone, role, verified, password)
-	VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id;`
-
-	userid, err := functions.GenerateUserID()
-	if err != nil {
-		// return fmt.Errorf("could not generate user ID: %w", err)
-		return "", err
-	}
+		INSERT INTO users (user_id, name, email, phone, role, verified, password)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING user_id;
+	`
 
 	var pk string
-	err = db.DB.QueryRow(query, userid, user.Name, user.Email, user.Phone, user.Role, true, user.Password).Scan(&pk)
-
+	err = db.DB.QueryRow(
+		query, userid, user.Name, user.Email, user.Phone, user.Role, true,
+		nullableString(derefOrEmpty(user.Password)),
+	).Scan(&pk)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("could not create user: %w", err)
 	}
 
-	return pk, nil
+	user.UserID = pk
+	return nil
+}
+
+// derefOrEmpty safely reads a *string, treating nil as "".
+func derefOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func (db *RealDB) UpdateUserCode(userID string, hashedCode string) error {
@@ -443,35 +451,48 @@ func appendPickupRequestToSheet(req *models.PickupRequest, salesAssociateName, d
 	return nil
 }
 
-func (db *RealDB) ConfirmPickupRequest(requestID, distributorID string) (bool, error) {
-	query := `
+func (db *RealDB) ConfirmPickupRequest(requestID, distributorID string) (bool, *models.Invoice, error) {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return false, nil, fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
 		UPDATE pickup_requests
 		SET confirmed = TRUE, updated_at = CURRENT_TIMESTAMP
 		WHERE request_id = $1 AND distributor_id = $2 AND confirmed = FALSE;
-	`
-
-	result, err := db.DB.Exec(query, requestID, distributorID)
+	`, requestID, distributorID)
 	if err != nil {
-		return false, fmt.Errorf("could not confirm pickup request: %w", err)
+		return false, nil, fmt.Errorf("could not confirm pickup request: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("could not check rows affected: %w", err)
+		return false, nil, fmt.Errorf("could not check rows affected: %w", err)
 	}
 
 	confirmed := rowsAffected > 0
-
-	// DB is source of truth and is already updated at this point.
-	// A Sheets failure is logged, not returned, so it doesn't turn a
-	// successful confirmation into an error response.
-	if confirmed {
-		if err := updateConfirmedInSheet(requestID); err != nil {
-			log.Error("failed to update confirmed status in Google Sheet: ", err)
-		}
+	if !confirmed {
+		return false, nil, nil
 	}
 
-	return confirmed, nil
+	invoice, err := db.createInvoiceForPickup(tx, requestID)
+	if err != nil {
+		return false, nil, fmt.Errorf("could not create invoice for confirmed pickup: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	// Sheets sync stays outside the tx, same as before — DB is already
+	// committed at this point, a Sheets failure shouldn't roll that back.
+	if err := updateConfirmedInSheet(requestID); err != nil {
+		log.Error("failed to update confirmed status in Google Sheet: ", err)
+	}
+
+	return true, invoice, nil
 }
 
 func updateConfirmedInSheet(requestID string) error {

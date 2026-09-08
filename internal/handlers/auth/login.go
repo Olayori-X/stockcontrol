@@ -3,10 +3,8 @@ package authhandlers
 import (
 	"encoding/json"
 	"errors"
-	"math"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Olayori-X/stock-control-backend/api"
 	"github.com/Olayori-X/stock-control-backend/functions"
@@ -15,6 +13,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// LoginHandler authenticates Admin and Distributor accounts via
+// email + password. Sales Associates never reach this successfully —
+// they have no password set (see SignupHandler) and must use
+// PINLoginHandler instead, since the APK is PIN-only per the brief.
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var params = api.LoginParams{}
 	var err error
@@ -27,7 +29,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.TrimSpace(params.Email) == "" {
-		api.RequestErrorHandler(w, errors.New("email or username cannot be empty"))
+		api.RequestErrorHandler(w, errors.New("email cannot be empty"))
 		return
 	}
 	if strings.TrimSpace(params.Password) == "" {
@@ -45,84 +47,18 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	var tokenDetails *sqltools.LoginDetails = (*database).GetUserLoginDetails(params.Email)
 	if tokenDetails == nil {
-		log.Warn("Login attempt with non-existing user:", params.Email)
+		// Covers: unknown email, AND sales associates (who have no
+		// password set and so never produce LoginDetails here).
+		log.Warn("Login attempt failed (no account or no password set) for: ", params.Email)
 		api.UnAuthorizedError(w)
 		return
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(tokenDetails.Password), []byte(params.Password))
 	if err != nil {
-		log.Warn("Invalid login attempt for:", params.Email)
+		log.Warn("Invalid login attempt for: ", params.Email)
 		api.UnAuthorizedError(w)
 		return
-	}
-
-	// ── Sales associate resumption geofence ────────────────────────────────
-	// A sales associate must be near at least one of today's planned outlets
-	// to be allowed to log in. Other roles skip this entirely.
-	if tokenDetails.Role == "sales" {
-		if params.Latitude == nil || params.Longitude == nil {
-			api.RequestErrorHandler(w, errors.New("location is required to log in"))
-			return
-		}
-
-		routeDay := time.Now().Weekday().String() // "Monday", "Tuesday", ...
-
-		plannedOutlets, err := (*database).GetPlannedOutletsForDay(tokenDetails.UserID, routeDay)
-		if err != nil {
-			log.Error("Failed to fetch planned outlets: ", err)
-			api.InternalErrorHandler(w)
-			return
-		}
-
-		if len(plannedOutlets) == 0 {
-			// No route assigned for today (e.g. Sunday, or nothing planned yet).
-			// Nothing to be "close to" — log in without a resumption check.
-			log.Infof("No planned outlets for %s on %s, skipping resumption check", tokenDetails.UserID, routeDay)
-		} else {
-			radiusKM, err := (*database).GetSettingFloat("resumption_radius_km")
-			if err != nil {
-				log.Error("Failed to read resumption_radius_km setting: ", err)
-				api.InternalErrorHandler(w)
-				return
-			}
-			radiusMeters := radiusKM * 1000
-
-			// Nearest of today's planned outlets. This approximates "distance
-			// to route corridor" from the spec — true corridor/polyline
-			// distance would need each outlet's route sequence and a
-			// point-to-line-segment calculation, which we can add later if
-			// nearest-outlet proves too permissive in practice.
-			nearestDistance := math.MaxFloat64
-			for _, outlet := range plannedOutlets {
-				d := functions.HaversineMeters(*params.Latitude, *params.Longitude, outlet.Latitude, outlet.Longitude)
-				if d < nearestDistance {
-					nearestDistance = d
-				}
-			}
-
-			result := "FAIL"
-			if nearestDistance <= radiusMeters {
-				result = "PASS"
-			}
-
-			if err := (*database).RecordResumption(
-				tokenDetails.UserID, routeDay,
-				*params.Latitude, *params.Longitude,
-				nearestDistance, result, params.DeviceRef,
-			); err != nil {
-				log.Error("Failed to record resumption: ", err)
-				api.InternalErrorHandler(w)
-				return
-			}
-
-			if result == "FAIL" {
-				log.Warnf("Resumption FAIL for %s: %.0fm from nearest planned outlet (radius %.0fm)",
-					tokenDetails.UserID, nearestDistance, radiusMeters)
-				api.RequestErrorHandler(w, errors.New("you are not near your planned route for today"))
-				return
-			}
-		}
 	}
 
 	// ── Generate session token ─────────────────────────────────────────────
@@ -163,6 +99,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Run email send and DB update concurrently
 		errChan := make(chan error, 2)
 
 		go func() {
