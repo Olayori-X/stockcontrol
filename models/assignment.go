@@ -18,3 +18,16 @@ type OutsideCoverageReport struct {
 	ThresholdPct         float64   `json:"threshold_pct"`
 	Exceeded             bool      `json:"exceeded"`
 }
+
+type ResumptionLog struct {
+	SalesAssociateID string    `json:"sales_associate_id"`
+	RouteDay         string    `json:"route_day"`
+	Date             time.Time `json:"date"`
+	Time             time.Time `json:"time"`
+	Latitude         float64   `json:"latitude"`
+	Longitude        float64   `json:"longitude"`
+	DistanceToRouteM float64   `json:"distance_to_route_m"`
+	Result           string    `json:"result"`
+	DeviceRef        string    `json:"device_ref"`
+	CreatedAt        time.Time `json:"created_at"`
+}

@@ -391,3 +391,121 @@ func (db *RealDB) GetOutsideCoverage(salesAssociateID string, weekStart, weekEnd
 		Exceeded:             pct > thresholdStr,
 	}, nil
 }
+
+// ============================================================================
+// FIELD ACTIVITY — READ (for Manager review + Admin dashboard)
+// ============================================================================
+
+// GetResumptionLogs lists resumption attempts in a date range, optionally
+// filtered to one associate. Powers the "resumption compliance" view.
+func (db *RealDB) GetResumptionLogs(salesAssociateID string, from, to time.Time) ([]models.ResumptionLog, error) {
+	query := `
+		SELECT sales_associate_id, route_day, date, time, latitude, longitude,
+		       distance_to_route_m, result, COALESCE(device_ref, ''), created_at
+		FROM resumption_log
+		WHERE date >= $1 AND date < $2
+	`
+	args := []interface{}{from, to}
+	if salesAssociateID != "" {
+		query += ` AND sales_associate_id = $3`
+		args = append(args, salesAssociateID)
+	}
+	query += ` ORDER BY date DESC, sales_associate_id;`
+
+	rows, err := db.DB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch resumption logs: %w", err)
+	}
+	defer rows.Close()
+
+	logs := make([]models.ResumptionLog, 0)
+	for rows.Next() {
+		var l models.ResumptionLog
+		if err := rows.Scan(
+			&l.SalesAssociateID, &l.RouteDay, &l.Date, &l.Time,
+			&l.Latitude, &l.Longitude, &l.DistanceToRouteM, &l.Result, &l.DeviceRef, &l.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("could not scan resumption log row: %w", err)
+		}
+		logs = append(logs, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return logs, nil
+}
+
+// GetOutletVisits lists visit attempts (PASS/FAIL) in a date range,
+// optionally filtered to one associate. Powers geofence-event review.
+func (db *RealDB) GetOutletVisits(salesAssociateID string, from, to time.Time) ([]models.OutletVisit, error) {
+	query := `
+		SELECT sales_associate_id, outlet_id, route_day, visited_at,
+		       latitude, longitude, distance_from_outlet_m, geofence_status, created_at
+		FROM outlet_visits
+		WHERE visited_at >= $1 AND visited_at < $2
+	`
+	args := []interface{}{from, to}
+	if salesAssociateID != "" {
+		query += ` AND sales_associate_id = $3`
+		args = append(args, salesAssociateID)
+	}
+	query += ` ORDER BY visited_at DESC;`
+
+	rows, err := db.DB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch outlet visits: %w", err)
+	}
+	defer rows.Close()
+
+	visits := make([]models.OutletVisit, 0)
+	for rows.Next() {
+		var v models.OutletVisit
+		if err := rows.Scan(
+			&v.SalesAssociateID, &v.OutletID, &v.RouteDay, &v.VisitedAt,
+			&v.Latitude, &v.Longitude, &v.DistanceFromOutletM, &v.GeofenceStatus, &v.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("could not scan outlet visit row: %w", err)
+		}
+		visits = append(visits, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return visits, nil
+}
+
+// MarkOverdueInvoices flips any 'open' invoice past its due_at to
+// 'overdue'. Only 'open' invoices are touched — 'paid' ones are already
+// settled, and one already 'overdue' doesn't need re-marking.
+//
+// Returns the invoice_ids that were actually flagged this run, so the
+// caller can log/notify on specifics rather than just a count — useful if
+// this later feeds a "notify distributor" step.
+func (db *RealDB) MarkOverdueInvoices() ([]string, error) {
+	rows, err := db.DB.Query(`
+		UPDATE invoices
+		SET status = 'overdue', updated_at = CURRENT_TIMESTAMP
+		WHERE status = 'open' AND due_at < CURRENT_TIMESTAMP
+		RETURNING invoice_id;
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("could not mark overdue invoices: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("could not scan overdue invoice id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return ids, nil
+}

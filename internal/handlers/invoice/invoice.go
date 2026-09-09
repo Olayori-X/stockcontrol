@@ -65,6 +65,9 @@ func GetOutstandingInvoicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	distributorID := r.Header.Get("userid")
+	if qp := r.URL.Query().Get("distributor_id"); qp != "" {
+		distributorID = qp
+	}
 
 	database, err := sqltools.NewDatabase()
 	if err != nil {

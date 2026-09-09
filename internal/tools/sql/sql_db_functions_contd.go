@@ -3,6 +3,7 @@ package sqltools
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/api/sheets/v4"
 )
 
 // PlannedOutletLocation is a lightweight projection of route_plans + outlets
@@ -468,6 +470,8 @@ func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput
 		return nil, false, false, fmt.Errorf("could not check for existing sale: %w", err)
 	}
 	if existing != nil {
+		// Already synced to the sheet on its first success — don't append
+		// a second time for an idempotent retry.
 		return existing, true, false, nil
 	}
 
@@ -515,13 +519,104 @@ func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput
 				return nil, false, false, fmt.Errorf("could not fetch sale after conflict: %w", fetchErr)
 			}
 			if existing != nil {
+				// Same idempotency reasoning as above — no second append.
 				return existing, true, false, nil
 			}
 		}
 		return nil, false, false, fmt.Errorf("could not insert sale: %w", err)
 	}
 
+	// New sale actually created — sync to the central sales sheet.
+	// Non-fatal on failure: the DB row is already committed and is the
+	// source of truth, so a Sheets hiccup shouldn't fail the sale itself
+	// (same principle as pickup-request sheet sync).
+	var salesAssociateName string
+	if u := db.GetUserDetails(salesAssociateID); u != nil {
+		salesAssociateName = u.Name
+	}
+	resumptionStatus := db.getTodaysResumptionStatus(salesAssociateID)
+
+	if sheetErr := appendSaleToSheet(&s, salesAssociateName, outlet, resumptionStatus); sheetErr != nil {
+		log.Error("failed to append sale to Google Sheet: ", sheetErr)
+	}
+
 	return &s, false, false, nil
+}
+
+// SALES_SPREADSHEET_ID is the central sales sheet — distinct from
+// PICKUP_REQUESTS_SPREADSHEET_ID. Set via env var, same pattern as the
+// existing pickup sheet.
+
+// appendSaleToSheet writes one row per sale to the central sales sheet,
+// matching the 22-column schema from the brief (section 21). Called once,
+// at the moment a sale is actually newly created — SubmitSale's caller is
+// responsible for not calling this on idempotent retries, so this function
+// itself doesn't need to check for duplicates.
+func appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *models.Outlet, resumptionStatus string) error {
+	srv, err := getSheetsClient()
+	if err != nil {
+		return err
+	}
+
+	spreadsheetID := os.Getenv("SALES_SPREADSHEET_ID")
+	if spreadsheetID == "" {
+		return fmt.Errorf("SALES_SPREADSHEET_ID is not set")
+	}
+
+	now := sale.CreatedAt
+	row := []interface{}{
+		sale.TransactionID,
+		now.Format("2006-01-02"), // Date
+		now.Format("15:04:05"),   // Time
+		sale.SalesAssociateID,
+		salesAssociateName,
+		sale.OutletID,
+		outlet.Name,
+		outlet.OutletType,
+		outlet.Area,
+		outlet.Zone,
+		sale.RouteDay,
+		sale.SKU,
+		strconv.Itoa(sale.Quantity),
+		strconv.FormatFloat(sale.UnitValue, 'f', 2, 64),
+		strconv.FormatFloat(sale.TotalValue, 'f', 2, 64),
+		strconv.FormatFloat(sale.Latitude, 'f', 6, 64),
+		strconv.FormatFloat(sale.Longitude, 'f', 6, 64),
+		strconv.FormatFloat(sale.DistanceFromOutletM, 'f', 1, 64),
+		sale.GeofenceStatus,
+		resumptionStatus,
+		"",                              // SCS Request/Invoice reference — sales aren't currently linked to a pickup/invoice; left blank until that relationship exists
+		time.Now().Format(time.RFC3339), // Sync Timestamp
+	}
+
+	valueRange := &sheets.ValueRange{Values: [][]interface{}{row}}
+
+	_, err = srv.Spreadsheets.Values.Append(
+		spreadsheetID, "Sheet1!A1",
+		valueRange,
+	).ValueInputOption("RAW").InsertDataOption("INSERT_ROWS").Do()
+	if err != nil {
+		return fmt.Errorf("could not append sale to sheet: %w", err)
+	}
+
+	return nil
+}
+
+// getTodaysResumptionStatus fetches the associate's resumption result for
+// today, for inclusion in the central sales sheet row. Returns "" if no
+// resumption record exists yet (e.g. no route planned for today) — the
+// caller writes that through as an empty cell rather than treating it as
+// an error, since a missing resumption isn't a sale-blocking condition.
+func (db *RealDB) getTodaysResumptionStatus(salesAssociateID string) string {
+	var result string
+	err := db.DB.QueryRow(
+		`SELECT result FROM resumption_log WHERE sales_associate_id = $1 AND date = CURRENT_DATE`,
+		salesAssociateID,
+	).Scan(&result)
+	if err != nil {
+		return ""
+	}
+	return result
 }
 
 func (db *RealDB) getSaleByTransactionID(transactionID string) (*models.Sale, error) {

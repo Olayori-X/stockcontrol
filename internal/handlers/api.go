@@ -10,6 +10,7 @@ import (
 	general "github.com/Olayori-X/stock-control-backend/internal/handlers/general"
 	invoice "github.com/Olayori-X/stock-control-backend/internal/handlers/invoice"
 	pickup "github.com/Olayori-X/stock-control-backend/internal/handlers/pickup"
+	reporting "github.com/Olayori-X/stock-control-backend/internal/handlers/supervisor"
 	middleware "github.com/Olayori-X/stock-control-backend/internal/middleware"
 	chimiddle "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
@@ -72,5 +73,17 @@ func Handler(r *chi.Mux) {
 
 		router.Post("/recordpayment", invoice.RecordPaymentHandler)
 		router.Get("/outstanding", invoice.GetOutstandingInvoicesHandler)
+	})
+
+	r.Route("/supervisor", func(router chi.Router) {
+		router.Use(middleware.Authorization)
+		router.Use(middleware.RequireRole("supervisor", "admin")) // admin can see everything supervisors see, too
+
+		router.Get("/outlets", outlet.GetOutletsHandler)
+		router.Get("/routeplan", route.GetRoutePlanHandler)
+		router.Get("/outsidecoverage", assignment.GetOutsideCoverageHandler)
+		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesHandler)
+		router.Get("/resumptionlogs", reporting.GetResumptionLogsHandler)
+		router.Get("/outletvisits", reporting.GetOutletVisitsHandler)
 	})
 }

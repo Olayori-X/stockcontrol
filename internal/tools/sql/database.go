@@ -78,6 +78,11 @@ type DatabaseInterface interface {
 	GetAssignedDistributors(salesAssociateID string) ([]models.DistributorAssignment, error)
 	IsDistributorAssigned(salesAssociateID, distributorID string) (bool, error)
 	GetOutsideCoverage(salesAssociateID string, weekStart, weekEnd time.Time) (*models.OutsideCoverageReport, error)
+
+	GetResumptionLogs(salesAssociateID string, from, to time.Time) ([]models.ResumptionLog, error)
+	GetOutletVisits(salesAssociateID string, from, to time.Time) ([]models.OutletVisit, error)
+
+	MarkOverdueInvoices() ([]string, error)
 }
 
 func NewDatabase() (*DatabaseInterface, error) {

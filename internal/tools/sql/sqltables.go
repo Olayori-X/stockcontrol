@@ -33,6 +33,10 @@ func (db *RealDB) SetupDatabase() error {
 	CreateUserTable(dbpointer)
 	CreateLoggedInUserTable(dbpointer)
 	CreateForgotPasswordTable(dbpointer)
+	AlterUsersTableAddPIN(dbpointer)
+	AlterUsersTableRelaxPasswordForSales(dbpointer)
+	AlterUsersTableAddSupervisorRole(dbpointer)
+	AlterLoggedInUsersTableAddSupervisorRole(dbpointer)
 
 	// ── SCS: pickups, products ──
 	CreatePickupRequestTable(dbpointer)
@@ -143,6 +147,41 @@ func AlterUsersTableRelaxPasswordForSales(db *sql.DB) error {
 		`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_password_check;`,
 		`ALTER TABLE users ADD CONSTRAINT users_password_check
 			CHECK (role = 'sales' OR (password IS NOT NULL AND password <> ''));`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Fatal("Could not alter table: ", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// AlterUsersTableAddSupervisorRole extends the role CHECK to include
+// 'supervisor'. Postgres has no ALTER CONSTRAINT, so the old CHECK is
+// dropped and replaced.
+func AlterUsersTableAddSupervisorRole(db *sql.DB) error {
+	statements := []string{
+		`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`,
+		`ALTER TABLE users ADD CONSTRAINT users_role_check
+			CHECK (role IN ('admin', 'sales', 'distributor', 'supervisor'));`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := db.Exec(stmt); err != nil {
+			log.Fatal("Could not alter table: ", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func AlterLoggedInUsersTableAddSupervisorRole(db *sql.DB) error {
+	statements := []string{
+		`ALTER TABLE loggedin_users DROP CONSTRAINT IF EXISTS loggedin_users_role_check;`,
+		`ALTER TABLE loggedin_users ADD CONSTRAINT loggedin_users_role_check
+			CHECK (role IN ('admin', 'sales', 'distributor', 'supervisor'));`,
 	}
 
 	for _, stmt := range statements {
@@ -452,7 +491,8 @@ func CreateSettingTable(db *sql.DB) error {
 		('resumption_radius_km', '1'),
 		('outlet_geofence_m', '250'),
 		('outside_coverage_pct', '30'),
-		('invoice_overdue_days', '7')
+		('invoice_overdue_days', '7'),
+		('overdue_check_interval_minutes', '60')
 	ON CONFLICT (key) DO NOTHING;
 	`
 	if _, err := db.Exec(seed); err != nil {

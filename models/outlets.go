@@ -19,3 +19,15 @@ type Outlet struct {
 	CreatedAt                time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
 }
+
+type OutletVisit struct {
+	SalesAssociateID    string    `json:"sales_associate_id"`
+	OutletID            string    `json:"outlet_id"`
+	RouteDay            string    `json:"route_day"`
+	VisitedAt           time.Time `json:"visited_at"`
+	Latitude            float64   `json:"latitude"`
+	Longitude           float64   `json:"longitude"`
+	DistanceFromOutletM float64   `json:"distance_from_outlet_m"`
+	GeofenceStatus      string    `json:"geofence_status"`
+	CreatedAt           time.Time `json:"created_at"`
+}

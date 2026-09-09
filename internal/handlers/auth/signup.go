@@ -32,8 +32,8 @@ func SignupHandler(w http.ResponseWriter, r *http.Request) {
 		api.RequestErrorHandler(w, errors.New("phone is required"))
 		return
 	}
-	if params.Role != "admin" && params.Role != "sales" && params.Role != "distributor" {
-		api.RequestErrorHandler(w, errors.New("role must be admin, sales, or distributor"))
+	if params.Role != "admin" && params.Role != "sales" && params.Role != "distributor" && params.Role != "supervisor" {
+		api.RequestErrorHandler(w, errors.New("role must be admin, sales, distributor, or supervisor"))
 		return
 	}
 

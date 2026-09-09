@@ -1,11 +1,15 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/Olayori-X/stock-control-backend/internal/handlers"
+	"github.com/Olayori-X/stock-control-backend/internal/tools/scheduler"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
@@ -15,7 +19,7 @@ import (
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("No .env file found (using system env)")
+		log.Info("No .env file found (using system env)")
 	}
 
 	log.SetReportCaller(true)
@@ -40,12 +44,37 @@ func main() {
 		port = "8080" // default for local dev
 	}
 
-	log.Printf("Starting server on port %s...", port)
-	err = http.ListenAndServe("0.0.0.0:"+port, r)
-	if err != nil {
-		log.Error(err)
-		fmt.Println("Failed to start server:", err)
+	srv := &http.Server{
+		Addr:    "0.0.0.0:" + port,
+		Handler: r,
+	}
+
+	// ── Background jobs ─────────────────────────────────────────────────
+	schedulerCtx, cancelScheduler := context.WithCancel(context.Background())
+	go scheduler.StartOverdueInvoiceCheck(schedulerCtx)
+
+	// ── Start server ─────────────────────────────────────────────────────
+	go func() {
+		log.Infof("Starting server on port %s...", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Failed to start server: ", err)
+		}
+	}()
+
+	// ── Graceful shutdown on SIGINT/SIGTERM ─────────────────────────────
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+
+	log.Info("Shutdown signal received, stopping...")
+	cancelScheduler()
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("Server forced to shut down: ", err)
 	} else {
-		fmt.Printf("Server is running on port %s...", port)
+		log.Info("Server shut down cleanly")
 	}
 }
