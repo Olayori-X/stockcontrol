@@ -194,6 +194,9 @@ func EditOutletHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actorID := r.Header.Get("userid")
+	(*database).RecordAuditLog(&actorID, "outlet_edited", updated.OutletID, "Outlet details updated by admin")
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(updated)

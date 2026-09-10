@@ -32,10 +32,12 @@ func StartOverdueInvoiceCheck(ctx context.Context) {
 			log.Error("Scheduler: failed to mark overdue invoices: ", err)
 			return
 		}
+
 		if len(ids) > 0 {
 			log.Infof("Scheduler: marked %d invoice(s) overdue: %v", len(ids), ids)
-		} else {
-			log.Debug("Scheduler: overdue invoice check ran, nothing to flag")
+			for _, id := range ids {
+				(*database).RecordAuditLog(nil, "invoice_marked_overdue", id, "Automatically flagged overdue by scheduled check")
+			}
 		}
 	}
 

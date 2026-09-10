@@ -62,6 +62,9 @@ func SetPINHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actorID := r.Header.Get("userid") // the admin performing the reset
+	(*database).RecordAuditLog(&actorID, "pin_reset", params.UserID, "PIN reset by admin")
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(api.SetPINResponse{

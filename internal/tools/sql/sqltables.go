@@ -599,7 +599,7 @@ func CreateAuditLogTable(db *sql.DB) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS audit_log (
 		id SERIAL PRIMARY KEY,
-		actor_id VARCHAR(50) NOT NULL REFERENCES users(user_id),
+		actor_id VARCHAR(50) REFERENCES users(user_id),
 		action VARCHAR(100) NOT NULL,
 		target VARCHAR(100),
 		details TEXT,

@@ -3,6 +3,7 @@ package handlers
 import (
 	admin "github.com/Olayori-X/stock-control-backend/internal/handlers/admin"
 	assignment "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/assignment"
+	audit "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/audit"
 	outlet "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/outlets"
 	product "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/products"
 	route "github.com/Olayori-X/stock-control-backend/internal/handlers/admin/routes"
@@ -52,6 +53,7 @@ func Handler(r *chi.Mux) {
 		router.Get("/assigneddistributors", assignment.GetAssignedDistributorsHandler)
 
 		router.Get("/outsidecoverage", assignment.GetOutsideCoverageHandler)
+		router.Get("/sales", reporting.GetSalesHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {
@@ -85,5 +87,7 @@ func Handler(r *chi.Mux) {
 		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesHandler)
 		router.Get("/resumptionlogs", reporting.GetResumptionLogsHandler)
 		router.Get("/outletvisits", reporting.GetOutletVisitsHandler)
+		router.Get("/auditlog", audit.GetAuditLogHandler)
+		router.Get("/sales", reporting.GetSalesHandler)
 	})
 }

@@ -83,6 +83,12 @@ type DatabaseInterface interface {
 	GetOutletVisits(salesAssociateID string, from, to time.Time) ([]models.OutletVisit, error)
 
 	MarkOverdueInvoices() ([]string, error)
+
+	RecordAuditLog(actorID *string, action, target, details string) error
+	GetAuditLog(actorID string, from, to time.Time) ([]models.AuditLogEntry, error)
+
+	GetSales(salesAssociateID, outletID, sku string, from, to time.Time) ([]models.Sale, error)
+	GetSalesSummary(salesAssociateID, outletID, sku string, from, to time.Time) (totalQuantity int, totalValue float64, err error)
 }
 
 func NewDatabase() (*DatabaseInterface, error) {
