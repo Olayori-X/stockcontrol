@@ -58,17 +58,45 @@ func RecordPaymentHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func GetOutstandingInvoicesHandler(w http.ResponseWriter, r *http.Request) {
+// GetOutstandingInvoicesForDistributorHandler — for /distributor/outstanding.
+// The caller IS the distributor, so userid IS the distributor_id. No
+// guessing, no query params needed.
+func GetOutstandingInvoicesForDistributorHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		api.RequestErrorHandler(w, errors.New("method not allowed"))
 		return
 	}
 
 	distributorID := r.Header.Get("userid")
-	if qp := r.URL.Query().Get("distributor_id"); qp != "" {
-		distributorID = qp
+
+	respondWithOutstandingInvoices(w, distributorID)
+}
+
+// GetOutstandingInvoicesForSupervisorHandler — for /supervisor (and
+// /admin, if you wire it there too). The caller is NOT a distributor, so
+// their userid header is meaningless here. They must explicitly say which
+// distributor they want, or explicitly ask for everyone.
+func GetOutstandingInvoicesForSupervisorHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		api.RequestErrorHandler(w, errors.New("method not allowed"))
+		return
 	}
 
+	distributorID := r.URL.Query().Get("distributor_id")
+	seeAll := r.URL.Query().Get("all") == "true"
+
+	if distributorID == "" && !seeAll {
+		api.RequestErrorHandler(w, errors.New("pass distributor_id=<id> to see one distributor, or all=true to see every distributor"))
+		return
+	}
+
+	respondWithOutstandingInvoices(w, distributorID)
+}
+
+// respondWithOutstandingInvoices is the shared logic both handlers above
+// call once they've each figured out the correct distributorID (or "" for
+// "everyone", in the supervisor case).
+func respondWithOutstandingInvoices(w http.ResponseWriter, distributorID string) {
 	database, err := sqltools.NewDatabase()
 	if err != nil {
 		log.Error("Failed to connect to database: ", err)

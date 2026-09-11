@@ -18,3 +18,24 @@ type Sale struct {
 	SyncedAt            *time.Time `db:"synced_at" json:"synced_at,omitempty"`
 	CreatedAt           time.Time  `db:"created_at" json:"created_at"`
 }
+
+type PlannedVsActual struct {
+	SalesAssociateID string    `json:"sales_associate_id"`
+	RouteDay         string    `json:"route_day"`
+	Date             time.Time `json:"date"`
+
+	OutletsPlanned   int      `json:"outlets_planned"`
+	OutletsVisited   int      `json:"outlets_visited"`   // distinct outlets with at least one PASS visit
+	ProductiveVisits int      `json:"productive_visits"` // distinct outlets with at least one sale
+	MissedOutlets    []string `json:"missed_outlets"`    // planned outlet_ids never visited
+
+	ResumptionTime   *string    `json:"resumption_time,omitempty"` // "" if no resumption record for the day
+	ResumptionResult *string    `json:"resumption_result,omitempty"`
+	LastActivity     *time.Time `json:"last_activity,omitempty"`
+
+	SalesCalls int     `json:"sales_calls"` // total PASS visit attempts (not distinct outlets)
+	SalesValue float64 `json:"sales_value"`
+
+	CoveragePct       float64 `json:"coverage_pct"`        // visited planned / total planned
+	RouteAdherencePct float64 `json:"route_adherence_pct"` // visits to planned outlets / total visits (flags off-route activity)
+}

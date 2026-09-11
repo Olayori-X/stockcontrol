@@ -195,7 +195,9 @@ func EditOutletHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actorID := r.Header.Get("userid")
-	(*database).RecordAuditLog(&actorID, "outlet_edited", updated.OutletID, "Outlet details updated by admin")
+	if err := (*database).RecordAuditLog(&actorID, "outlet_edited", updated.OutletID, "Outlet details updated by admin"); err != nil {
+		log.Error("Failed to record audit log entry: ", err)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

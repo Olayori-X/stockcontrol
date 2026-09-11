@@ -16,17 +16,12 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-// PlannedOutletLocation is a lightweight projection of route_plans + outlets
-// used purely for the resumption geofence check — no need for the full
-// Outlet model here.
 type PlannedOutletLocation struct {
 	OutletID  string
 	Latitude  float64
 	Longitude float64
 }
 
-// GetPlannedOutletsForDay returns every outlet assigned to a sales associate
-// for a given route day (e.g. "Monday"), for resumption geofence checking.
 func (db *RealDB) GetPlannedOutletsForDay(salesAssociateID, routeDay string) ([]PlannedOutletLocation, error) {
 	query := `
 	SELECT o.outlet_id, o.latitude, o.longitude
@@ -56,9 +51,6 @@ func (db *RealDB) GetPlannedOutletsForDay(salesAssociateID, routeDay string) ([]
 	return locations, nil
 }
 
-// GetSettingFloat reads a numeric threshold from the settings table
-// (e.g. resumption_radius_km) so it stays admin-configurable rather than
-// hardcoded in the handler.
 func (db *RealDB) GetSettingFloat(key string) (float64, error) {
 	var value string
 	err := db.DB.QueryRow(`SELECT value FROM settings WHERE key = $1`, key).Scan(&value)
@@ -73,9 +65,6 @@ func (db *RealDB) GetSettingFloat(key string) (float64, error) {
 	return parsed, nil
 }
 
-// RecordResumption upserts today's resumption result for a sales associate.
-// ON CONFLICT lets a second login attempt on the same day overwrite the
-// previous result rather than erroring on the UNIQUE(sales_associate_id, date).
 func (db *RealDB) RecordResumption(salesAssociateID, routeDay string, lat, lon, distanceM float64, result, deviceRef string) error {
 	query := `
 	INSERT INTO resumption_log (sales_associate_id, route_day, date, time, latitude, longitude, distance_to_route_m, result, device_ref)
@@ -98,20 +87,6 @@ func (db *RealDB) RecordResumption(salesAssociateID, routeDay string, lat, lon, 
 	return nil
 }
 
-// ============================================================================
-// ROUTE PLANNING
-// ============================================================================
-
-// SetRoutePlan replaces a sales associate's entire route plan for a given
-// day: existing stops for that associate/day are deleted, then the new
-// ordered list is inserted with sequence = position in the slice (1-indexed).
-// Runs in a transaction so a partial replace never lands (e.g. delete
-// succeeds but a later insert fails on a bad outlet_id).
-//
-// Replacing rather than diffing is deliberate: an admin's route-planner UI
-// naturally submits the whole day's list on every save (drag-to-reorder,
-// add, remove all mutate the same in-memory list), so there's no need for
-// separate add/remove/reorder endpoints or diffing logic here.
 func (db *RealDB) SetRoutePlan(salesAssociateID, routeDay string, outletIDs []string) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
@@ -145,8 +120,6 @@ func (db *RealDB) SetRoutePlan(salesAssociateID, routeDay string, outletIDs []st
 	return nil
 }
 
-// GetRoutePlan fetches a sales associate's full plan for a route day,
-// joined against outlets for display details, ordered by sequence.
 func (db *RealDB) GetRoutePlan(salesAssociateID, routeDay string) (*models.RoutePlan, error) {
 	query := `
 		SELECT o.outlet_id, o.name, o.latitude, o.longitude, o.address, rp.sequence,
@@ -191,9 +164,6 @@ func (db *RealDB) GetRoutePlan(salesAssociateID, routeDay string) (*models.Route
 	return plan, nil
 }
 
-// ApproveRoutePlan marks every stop in an associate's day plan as approved.
-// Returns false (no error) if the plan doesn't exist / has no stops, so the
-// handler can distinguish "nothing to approve" from a real DB failure.
 func (db *RealDB) ApproveRoutePlan(salesAssociateID, routeDay string) (bool, error) {
 	result, err := db.DB.Exec(
 		`UPDATE route_plans SET approved = TRUE, updated_at = CURRENT_TIMESTAMP
@@ -212,13 +182,6 @@ func (db *RealDB) ApproveRoutePlan(salesAssociateID, routeDay string) (bool, err
 	return rowsAffected > 0, nil
 }
 
-// ============================================================================
-// OUTLETS
-// ============================================================================
-
-// AddOutlet generates a permanent outlet_id and inserts the outlet.
-// outlet_id is never reused even after deactivation — historical sales,
-// visits, and route plans stay attached to it via FK.
 func (db *RealDB) AddOutlet(outlet *models.Outlet) error {
 	outletID := "OUT_" + uuid.NewString()
 
@@ -242,15 +205,9 @@ func (db *RealDB) AddOutlet(outlet *models.Outlet) error {
 		return fmt.Errorf("could not create outlet: %w", err)
 	}
 
-	outlet.Name = outlet.Name // no-op, keeps the rest of the struct as passed in
-
 	return nil
 }
 
-// GetOutlets lists outlets. includeInactive controls whether deactivated
-// outlets are returned — the admin dashboard's management view needs to see
-// them (to reactivate or audit), but route planning / sales-associate pickers
-// should only ever see active ones.
 func (db *RealDB) GetOutlets(includeInactive bool) ([]models.Outlet, error) {
 	query := `
 		SELECT outlet_id, name, address, outlet_type, phone,
@@ -290,9 +247,6 @@ func (db *RealDB) GetOutlets(includeInactive bool) ([]models.Outlet, error) {
 	return outlets, nil
 }
 
-// GetOutletByID fetches a single outlet regardless of active status —
-// callers that need "must be active" (e.g. route planning) check the
-// Active field themselves.
 func (db *RealDB) GetOutletByID(outletID string) (*models.Outlet, error) {
 	query := `
 		SELECT outlet_id, name, address, outlet_type, phone,
@@ -320,10 +274,6 @@ func (db *RealDB) GetOutletByID(outletID string) (*models.Outlet, error) {
 	return &o, nil
 }
 
-// EditOutlet updates every editable field. outlet_id and active status are
-// never changed here — active status has its own dedicated
-// activate/deactivate operation so it can't be silently flipped by a
-// general edit.
 func (db *RealDB) EditOutlet(outlet *models.Outlet) (*models.Outlet, error) {
 	query := `
 		UPDATE outlets
@@ -360,10 +310,6 @@ func (db *RealDB) EditOutlet(outlet *models.Outlet) (*models.Outlet, error) {
 	return &updated, nil
 }
 
-// SetOutletActive activates or deactivates an outlet. Deactivation is the
-// only supported form of "delete" — outlet_id must never disappear from the
-// table, since sales/visits/route_plans reference it by FK and historical
-// records must stay attached to the correct outlet.
 func (db *RealDB) SetOutletActive(outletID string, active bool) (bool, error) {
 	result, err := db.DB.Exec(
 		`UPDATE outlets SET active = $2, updated_at = CURRENT_TIMESTAMP WHERE outlet_id = $1`,
@@ -381,10 +327,6 @@ func (db *RealDB) SetOutletActive(outletID string, active bool) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
-// nullableString converts an empty string to SQL NULL, so optional
-// foreign-key/text columns (assigned_sales_associate_id, route_day) don't
-// get stored as empty-string values that would violate the FK or just be
-// semantically wrong for "unset".
 func nullableString(s string) interface{} {
 	if s == "" {
 		return nil
@@ -392,14 +334,6 @@ func nullableString(s string) interface{} {
 	return s
 }
 
-// ============================================================================
-// OUTLET GEOFENCE / VISITS
-// ============================================================================
-
-// RecordOutletVisit inserts a visit attempt — PASS or FAIL — so there's an
-// audit trail of every geofence check, not just successful ones. The caller
-// decides what to allow next based on the returned status; this function
-// just records what happened.
 func (db *RealDB) RecordOutletVisit(salesAssociateID, outletID, routeDay string, lat, lon, distanceM float64, status string) error {
 	query := `
 		INSERT INTO outlet_visits (
@@ -416,71 +350,62 @@ func (db *RealDB) RecordOutletVisit(salesAssociateID, outletID, routeDay string,
 	return nil
 }
 
-// SubmitSale attempts to record a sale. The geofence check happens inside
-// this function, at the moment of submission — it never trusts a prior
-// PASS from ConfirmOutletVisitHandler, since GPS can drift or the associate
-// can walk away between confirming a visit and submitting a sale.
-//
-// Returns (sale, alreadyExisted, blocked, error):
-//   - blocked=true, sale=nil: outside geofence, nothing was written except
-//     the outlet_visits audit row.
-//   - alreadyExisted=true: this transaction_id was already recorded (safe
-//     retry) — the original sale is returned, nothing new was inserted.
-//   - otherwise: a new sale was created and returned.
-func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput) (sale *models.Sale, alreadyExisted bool, blocked bool, err error) {
+func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput) (sale *models.Sale, alreadyExisted bool, blockReason string, err error) {
 	outlet, err := db.GetOutletByID(input.OutletID)
 	if err != nil {
-		return nil, false, false, fmt.Errorf("could not fetch outlet: %w", err)
+		return nil, false, "", fmt.Errorf("could not fetch outlet: %w", err)
 	}
 	if outlet == nil || !outlet.Active {
-		return nil, false, false, fmt.Errorf("outlet not found")
+		return nil, false, "", fmt.Errorf("outlet not found")
 	}
 
 	radiusM, err := db.GetSettingFloat("outlet_geofence_m")
 	if err != nil {
-		return nil, false, false, fmt.Errorf("could not read outlet_geofence_m setting: %w", err)
+		return nil, false, "", fmt.Errorf("could not read outlet_geofence_m setting: %w", err)
 	}
 
 	distance := functions.HaversineMeters(input.Latitude, input.Longitude, outlet.Latitude, outlet.Longitude)
 
-	status := "FAIL"
+	geofenceStatus := "FAIL"
 	if distance <= radiusM {
-		status = "PASS"
+		geofenceStatus = "PASS"
 	}
 
-	// Record the visit attempt regardless of outcome — same audit-trail
-	// principle as ConfirmOutletVisitHandler.
 	if visitErr := db.RecordOutletVisit(
 		salesAssociateID, input.OutletID, input.RouteDay,
-		input.Latitude, input.Longitude, distance, status,
+		input.Latitude, input.Longitude, distance, geofenceStatus,
 	); visitErr != nil {
 		log.Error("Failed to record outlet visit during sale submission: ", visitErr)
-		// Non-fatal: the geofence decision below doesn't depend on this
-		// write succeeding, so a sale isn't blocked purely because the
-		// audit insert had a transient failure. It is logged either way.
 	}
 
-	if status == "FAIL" {
-		return nil, false, true, nil
+	if geofenceStatus == "FAIL" {
+		return nil, false, "geofence", nil
 	}
 
-	// Existing transaction_id → safe retry, return what's already there.
 	existing, err := db.getSaleByTransactionID(input.TransactionID)
 	if err != nil {
-		return nil, false, false, fmt.Errorf("could not check for existing sale: %w", err)
+		return nil, false, "", fmt.Errorf("could not check for existing sale: %w", err)
 	}
 	if existing != nil {
-		// Already synced to the sheet on its first success — don't append
-		// a second time for an idempotent retry.
-		return existing, true, false, nil
+		return existing, true, "", nil
 	}
 
 	product, err := db.GetProductBySKU(input.SKU)
 	if err != nil {
-		return nil, false, false, fmt.Errorf("could not fetch product: %w", err)
+		return nil, false, "", fmt.Errorf("could not fetch product: %w", err)
 	}
 	if product == nil {
-		return nil, false, false, fmt.Errorf("product not found for sku %s", input.SKU)
+		return nil, false, "", fmt.Errorf("product not found for sku %s", input.SKU)
+	}
+
+	available, err := db.GetAvailableStock(salesAssociateID, input.SKU)
+	if err != nil {
+		return nil, false, "", fmt.Errorf("could not check available stock: %w", err)
+	}
+	if input.Quantity > available {
+		log.Warnf("Sale blocked by stock check: %s tried to sell %d of %s but only has %d available",
+			salesAssociateID, input.Quantity, input.SKU, available)
+		return nil, false, "insufficient_stock", nil
 	}
 
 	totalValue := product.Price * float64(input.Quantity)
@@ -503,7 +428,7 @@ func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput
 		insert,
 		input.TransactionID, salesAssociateID, input.OutletID, input.SKU, input.Quantity,
 		product.Price, totalValue, input.Latitude, input.Longitude,
-		distance, status, input.RouteDay,
+		distance, geofenceStatus, input.RouteDay,
 	).Scan(
 		&s.TransactionID, &s.SalesAssociateID, &s.OutletID, &s.SKU, &s.Quantity,
 		&s.UnitValue, &s.TotalValue, &s.Latitude, &s.Longitude,
@@ -511,25 +436,17 @@ func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// Lost a race against a concurrent identical retry between our
-			// existence check above and this insert — fetch what the other
-			// request wrote and return that instead of erroring.
 			existing, fetchErr := db.getSaleByTransactionID(input.TransactionID)
 			if fetchErr != nil {
-				return nil, false, false, fmt.Errorf("could not fetch sale after conflict: %w", fetchErr)
+				return nil, false, "", fmt.Errorf("could not fetch sale after conflict: %w", fetchErr)
 			}
 			if existing != nil {
-				// Same idempotency reasoning as above — no second append.
-				return existing, true, false, nil
+				return existing, true, "", nil
 			}
 		}
-		return nil, false, false, fmt.Errorf("could not insert sale: %w", err)
+		return nil, false, "", fmt.Errorf("could not insert sale: %w", err)
 	}
 
-	// New sale actually created — sync to the central sales sheet.
-	// Non-fatal on failure: the DB row is already committed and is the
-	// source of truth, so a Sheets hiccup shouldn't fail the sale itself
-	// (same principle as pickup-request sheet sync).
 	var salesAssociateName string
 	if u := db.GetUserDetails(salesAssociateID); u != nil {
 		salesAssociateName = u.Name
@@ -540,18 +457,9 @@ func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput
 		log.Error("failed to append sale to Google Sheet: ", sheetErr)
 	}
 
-	return &s, false, false, nil
+	return &s, false, "", nil
 }
 
-// SALES_SPREADSHEET_ID is the central sales sheet — distinct from
-// PICKUP_REQUESTS_SPREADSHEET_ID. Set via env var, same pattern as the
-// existing pickup sheet.
-
-// appendSaleToSheet writes one row per sale to the central sales sheet,
-// matching the 22-column schema from the brief (section 21). Called once,
-// at the moment a sale is actually newly created — SubmitSale's caller is
-// responsible for not calling this on idempotent retries, so this function
-// itself doesn't need to check for duplicates.
 func appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *models.Outlet, resumptionStatus string) error {
 	srv, err := getSheetsClient()
 	if err != nil {
@@ -566,8 +474,8 @@ func appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *mod
 	now := sale.CreatedAt
 	row := []interface{}{
 		sale.TransactionID,
-		now.Format("2006-01-02"), // Date
-		now.Format("15:04:05"),   // Time
+		now.Format("2006-01-02"),
+		now.Format("15:04:05"),
 		sale.SalesAssociateID,
 		salesAssociateName,
 		sale.OutletID,
@@ -585,8 +493,8 @@ func appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *mod
 		strconv.FormatFloat(sale.DistanceFromOutletM, 'f', 1, 64),
 		sale.GeofenceStatus,
 		resumptionStatus,
-		"",                              // SCS Request/Invoice reference — sales aren't currently linked to a pickup/invoice; left blank until that relationship exists
-		time.Now().Format(time.RFC3339), // Sync Timestamp
+		"",
+		time.Now().Format(time.RFC3339),
 	}
 
 	valueRange := &sheets.ValueRange{Values: [][]interface{}{row}}
@@ -602,11 +510,6 @@ func appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *mod
 	return nil
 }
 
-// getTodaysResumptionStatus fetches the associate's resumption result for
-// today, for inclusion in the central sales sheet row. Returns "" if no
-// resumption record exists yet (e.g. no route planned for today) — the
-// caller writes that through as an empty cell rather than treating it as
-// an error, since a missing resumption isn't a sale-blocking condition.
 func (db *RealDB) getTodaysResumptionStatus(salesAssociateID string) string {
 	var result string
 	err := db.DB.QueryRow(

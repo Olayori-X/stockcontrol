@@ -61,7 +61,7 @@ func SubmitSaleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sale, alreadyExisted, blocked, err := (*database).SubmitSale(salesAssociateID, &params)
+	sale, alreadyExisted, blockReason, err := (*database).SubmitSale(salesAssociateID, &params)
 	if err != nil {
 		log.Error("Failed to submit sale: ", err)
 		api.InternalErrorHandler(w)
@@ -70,28 +70,31 @@ func SubmitSaleHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if blocked {
-		// Geofence FAIL — sale was not created, matching the brief's
-		// "normal on-site sale is blocked" rule. See the geofence-check
-		// endpoint's design note: this is a result, not a client error,
-		// so it stays 200 with the outcome in the body.
-		log.Warnf("Sale blocked by geofence for %s at outlet %s (transaction %s)",
-			salesAssociateID, params.OutletID, params.TransactionID)
+	if blockReason != "" {
+		message := "This sale could not be completed."
+		switch blockReason {
+		case "geofence":
+			message = "You are too far from this outlet to submit a sale."
+		case "insufficient_stock":
+			message = "You don't have enough of this product on hand to complete this sale."
+		}
+
+		log.Warnf("Sale blocked (%s) for %s at outlet %s (transaction %s)",
+			blockReason, salesAssociateID, params.OutletID, params.TransactionID)
+
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"transaction_id":  params.TransactionID,
-			"outlet_id":       params.OutletID,
-			"geofence_status": "FAIL",
-			"sale_recorded":   false,
-			"message":         "You are too far from this outlet to submit a sale.",
+			"transaction_id": params.TransactionID,
+			"outlet_id":      params.OutletID,
+			"block_reason":   blockReason,
+			"sale_recorded":  false,
+			"message":        message,
 		})
 		return
 	}
 
 	status := http.StatusCreated
 	if alreadyExisted {
-		// Idempotent retry — same transaction_id already succeeded before.
-		// 200, not 201: nothing new was created this time.
 		status = http.StatusOK
 	}
 

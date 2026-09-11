@@ -17,6 +17,10 @@ import (
 // stores it, and returns the plaintext PIN exactly once — the admin must
 // relay it to the associate now, since it's never retrievable again
 // (only the hash is stored, same as passwords).
+// SetPINHandler generates a fresh 8-digit PIN for a user, hashes and
+// stores it, and returns the plaintext PIN exactly once — the admin must
+// relay it to the associate now, since it's never retrievable again
+// (only the hash is stored, same as passwords).
 func SetPINHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.RequestErrorHandler(w, errors.New("method not allowed"))
@@ -35,6 +39,25 @@ func SetPINHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	database, err := sqltools.NewDatabase()
+	if err != nil {
+		log.Error("Failed to connect to database: ", err)
+		api.InternalErrorHandler(w)
+		return
+	}
+
+	// PINs are Sales Associate-only — reject upfront rather than letting
+	// an admin accidentally set a PIN on an admin/distributor account.
+	target := (*database).GetUserDetails(params.UserID)
+	if target == nil {
+		api.RequestErrorHandler(w, errors.New("user not found"))
+		return
+	}
+	if target.Role != "sales" {
+		api.RequestErrorHandler(w, errors.New("PINs can only be set for sales associates"))
+		return
+	}
+
 	pin, err := functions.GenerateNumericPIN(8)
 	if err != nil {
 		log.Error("Failed to generate PIN: ", err)
@@ -49,21 +72,16 @@ func SetPINHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := sqltools.NewDatabase()
-	if err != nil {
-		log.Error("Failed to connect to database: ", err)
-		api.InternalErrorHandler(w)
-		return
-	}
-
 	if err := (*database).SetUserPIN(params.UserID, hashedPin); err != nil {
 		log.Error("Failed to set PIN: ", err)
 		api.InternalErrorHandler(w)
 		return
 	}
 
-	actorID := r.Header.Get("userid") // the admin performing the reset
-	(*database).RecordAuditLog(&actorID, "pin_reset", params.UserID, "PIN reset by admin")
+	actorID := r.Header.Get("userid")
+	if err := (*database).RecordAuditLog(&actorID, "pin_set", params.UserID, "PIN generated for sales associate"); err != nil {
+		log.Error("Failed to record audit log entry: ", err)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

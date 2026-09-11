@@ -65,7 +65,7 @@ type DatabaseInterface interface {
 	EditOutlet(outlet *models.Outlet) (*models.Outlet, error)
 	SetOutletActive(outletID string, active bool) (bool, error)
 	RecordOutletVisit(salesAssociateID, outletID, routeDay string, lat, lon, distanceM float64, status string) error
-	SubmitSale(salesAssociateID string, input *api.SubmitSaleInput) (sale *models.Sale, alreadyExisted bool, blocked bool, err error)
+	SubmitSale(salesAssociateID string, input *api.SubmitSaleInput) (sale *models.Sale, alreadyExisted bool, blockReason string, err error)
 
 	RecordPayment(invoiceID string, amount float64) (*models.Receipt, *models.Invoice, error)
 	GetOutstandingInvoices(distributorID string) ([]models.Invoice, error)
@@ -89,6 +89,9 @@ type DatabaseInterface interface {
 
 	GetSales(salesAssociateID, outletID, sku string, from, to time.Time) ([]models.Sale, error)
 	GetSalesSummary(salesAssociateID, outletID, sku string, from, to time.Time) (totalQuantity int, totalValue float64, err error)
+	GetPlannedVsActual(salesAssociateID string, date time.Time) (*models.PlannedVsActual, error)
+	GetRouteEfficiency(salesAssociateID, routeDay string) (*models.RouteEfficiency, error)
+	GetAvailableStock(salesAssociateID, sku string) (int, error)
 }
 
 func NewDatabase() (*DatabaseInterface, error) {

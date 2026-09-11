@@ -323,13 +323,12 @@ func (db *RealDB) SearchDistributors(query string) ([]models.User, error) {
 	return users, nil
 }
 
-// CreatePickupRequest inserts a pickup request and its line items in a single transaction.
 func (db *RealDB) CreatePickupRequest(req *models.PickupRequest) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return fmt.Errorf("could not begin transaction: %w", err)
 	}
-	defer tx.Rollback() // no-op if committed
+	defer tx.Rollback()
 
 	insertRequest := `
 		INSERT INTO pickup_requests (request_id, sales_associate_id, distributor_id)
@@ -357,7 +356,6 @@ func (db *RealDB) CreatePickupRequest(req *models.PickupRequest) error {
 		}
 	}
 
-	// Fetch names while the tx is still open — cheap lookups, same connection.
 	var salesAssociateName, distributorName string
 	err = tx.QueryRow(`SELECT name FROM users WHERE user_id = $1`, req.SalesAssociateID).Scan(&salesAssociateName)
 	if err != nil {
@@ -372,9 +370,6 @@ func (db *RealDB) CreatePickupRequest(req *models.PickupRequest) error {
 		return fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	// DB write succeeded — the pickup request now exists regardless of what
-	// happens below. A Sheets failure is logged, not returned, so it doesn't
-	// turn a successful request into a 500.
 	if err := appendPickupRequestToSheet(req, salesAssociateName, distributorName); err != nil {
 		log.Error("failed to append pickup request to Google Sheet: ", err)
 	}
@@ -388,9 +383,6 @@ var (
 	sheetsClientErr  error
 )
 
-// getSheetsClient returns a shared Sheets client, creating it once on first
-// use and reusing it for every subsequent call — avoids reconnecting on
-// every pickup request created or confirmed.
 func getSheetsClient() (*sheets.Service, error) {
 	sheetsClientOnce.Do(func() {
 		credsJSON := os.Getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
@@ -423,7 +415,6 @@ func appendPickupRequestToSheet(req *models.PickupRequest, salesAssociateName, d
 		return fmt.Errorf("PICKUP_REQUESTS_SPREADSHEET_ID is not set")
 	}
 
-	// One row per product so each SKU/quantity is visible in the sheet.
 	var rows [][]interface{}
 	for _, item := range req.Products {
 		rows = append(rows, []interface{}{
@@ -486,8 +477,6 @@ func (db *RealDB) ConfirmPickupRequest(requestID, distributorID string) (bool, *
 		return false, nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	// Sheets sync stays outside the tx, same as before — DB is already
-	// committed at this point, a Sheets failure shouldn't roll that back.
 	if err := updateConfirmedInSheet(requestID); err != nil {
 		log.Error("failed to update confirmed status in Google Sheet: ", err)
 	}
@@ -506,8 +495,6 @@ func updateConfirmedInSheet(requestID string) error {
 		return fmt.Errorf("PICKUP_REQUESTS_SPREADSHEET_ID is not set")
 	}
 
-	// Column A holds request_id, column G holds confirmed — matches the
-	// row layout written in appendPickupRequestToSheet.
 	resp, err := srv.Spreadsheets.Values.Get(spreadsheetID, "Sheet1!A:A").Do()
 	if err != nil {
 		return fmt.Errorf("could not read sheet to find request rows: %w", err)
@@ -519,7 +506,7 @@ func updateConfirmedInSheet(requestID string) error {
 			continue
 		}
 		if cell, ok := row[0].(string); ok && cell == requestID {
-			matchingRows = append(matchingRows, i+1) // sheet rows are 1-indexed
+			matchingRows = append(matchingRows, i+1)
 		}
 	}
 
@@ -591,8 +578,6 @@ func (db *RealDB) GetPendingPickupRequests(distributorID string) ([]models.Pendi
 		return requests, nil
 	}
 
-	// Fetch all line items for these requests in one batched query,
-	// then group them back onto each request in memory.
 	itemsQuery := `
 		SELECT request_id, sku, name, quantity
 		FROM pickup_request_items
@@ -668,8 +653,6 @@ func (db *RealDB) GetUnacceptedPickupRequests(salesAssociateID string) ([]models
 		return requests, nil
 	}
 
-	// Fetch all line items for these requests in one batched query,
-	// then group them back onto each request in memory.
 	itemsQuery := `
 		SELECT request_id, sku, name, quantity
 		FROM pickup_request_items

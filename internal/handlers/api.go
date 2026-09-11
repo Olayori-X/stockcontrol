@@ -53,7 +53,7 @@ func Handler(r *chi.Mux) {
 		router.Get("/assigneddistributors", assignment.GetAssignedDistributorsHandler)
 
 		router.Get("/outsidecoverage", assignment.GetOutsideCoverageHandler)
-		router.Get("/sales", reporting.GetSalesHandler)
+		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesForSupervisorHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {
@@ -65,6 +65,7 @@ func Handler(r *chi.Mux) {
 		router.Get("/products", product.GetProductsHandler)
 		router.Post("/confirmvisit", outlet.ConfirmOutletVisitHandler)
 		router.Post("/submitsale", outlet.SubmitSaleHandler)
+		router.Get("/outlets", outlet.GetOutletsHandler)
 	})
 
 	r.Route("/distributor", func(router chi.Router) {
@@ -74,7 +75,7 @@ func Handler(r *chi.Mux) {
 		router.Post("/confirmrequest", pickup.ConfirmPickupRequestHandler)
 
 		router.Post("/recordpayment", invoice.RecordPaymentHandler)
-		router.Get("/outstanding", invoice.GetOutstandingInvoicesHandler)
+		router.Get("/outstanding", invoice.GetOutstandingInvoicesForDistributorHandler)
 	})
 
 	r.Route("/supervisor", func(router chi.Router) {
@@ -84,10 +85,12 @@ func Handler(r *chi.Mux) {
 		router.Get("/outlets", outlet.GetOutletsHandler)
 		router.Get("/routeplan", route.GetRoutePlanHandler)
 		router.Get("/outsidecoverage", assignment.GetOutsideCoverageHandler)
-		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesHandler)
+		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesForSupervisorHandler)
 		router.Get("/resumptionlogs", reporting.GetResumptionLogsHandler)
 		router.Get("/outletvisits", reporting.GetOutletVisitsHandler)
 		router.Get("/auditlog", audit.GetAuditLogHandler)
 		router.Get("/sales", reporting.GetSalesHandler)
+		router.Get("/plannedvsactual", reporting.GetPlannedVsActualHandler)
+		router.Get("/routeefficiency", reporting.GetRouteEfficiencyHandler)
 	})
 }
