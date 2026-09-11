@@ -243,12 +243,17 @@ func (db *RealDB) UnassignDistributor(salesAssociateID, distributorID string) (b
 	return rowsAffected > 0, nil
 }
 
+// GetAssignedDistributors lists every distributor covered for a given
+// sales associate — used both by the admin dashboard and the
+// outside-coverage calculation. Joined against users for display name,
+// same pattern as GetPendingPickupRequests joining for sales_associate_name.
 func (db *RealDB) GetAssignedDistributors(salesAssociateID string) ([]models.DistributorAssignment, error) {
 	rows, err := db.DB.Query(`
-		SELECT sales_associate_id, distributor_id, created_at
-		FROM distributor_assignments
-		WHERE sales_associate_id = $1
-		ORDER BY created_at;
+		SELECT da.sales_associate_id, da.distributor_id, u.name, da.created_at
+		FROM distributor_assignments da
+		JOIN users u ON u.user_id = da.distributor_id
+		WHERE da.sales_associate_id = $1
+		ORDER BY da.created_at;
 	`, salesAssociateID)
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch distributor assignments: %w", err)
@@ -258,7 +263,7 @@ func (db *RealDB) GetAssignedDistributors(salesAssociateID string) ([]models.Dis
 	assignments := make([]models.DistributorAssignment, 0)
 	for rows.Next() {
 		var a models.DistributorAssignment
-		if err := rows.Scan(&a.SalesAssociateID, &a.DistributorID, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.SalesAssociateID, &a.DistributorID, &a.DistributorName, &a.CreatedAt); err != nil {
 			return nil, fmt.Errorf("could not scan assignment row: %w", err)
 		}
 		assignments = append(assignments, a)

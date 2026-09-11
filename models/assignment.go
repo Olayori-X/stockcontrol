@@ -5,6 +5,7 @@ import "time"
 type DistributorAssignment struct {
 	SalesAssociateID string    `db:"sales_associate_id" json:"sales_associate_id"`
 	DistributorID    string    `db:"distributor_id" json:"distributor_id"`
+	DistributorName  string    `db:"distributor_name" json:"distributor_name"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 }
 
