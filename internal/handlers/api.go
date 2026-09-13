@@ -27,7 +27,6 @@ func Handler(r *chi.Mux) {
 	})
 
 	r.Route("/admin", func(router chi.Router) {
-		// Middle ware for /account authorization
 		router.Use(middleware.Authorization)
 		router.Use(middleware.RequireRole("admin"))
 		router.Post("/signup", auth.SignupHandler)
@@ -51,9 +50,9 @@ func Handler(r *chi.Mux) {
 		router.Post("/assigndistributor", assignment.AssignDistributorHandler)
 		router.Delete("/unassigndistributor", assignment.UnassignDistributorHandler)
 		router.Get("/assigneddistributors", assignment.GetAssignedDistributorsHandler)
-
 		router.Get("/outsidecoverage", assignment.GetOutsideCoverageHandler)
 		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesForSupervisorHandler)
+		router.Get("/auditlog", audit.GetAuditLogHandler) // moved here — admin-only, per brief
 	})
 
 	r.Route("/sales", func(router chi.Router) {
@@ -73,7 +72,6 @@ func Handler(r *chi.Mux) {
 		router.Use(middleware.RequireRole("distributor"))
 		router.Get("/pendingrequests", pickup.GetPendingPickupRequestsHandler)
 		router.Post("/confirmrequest", pickup.ConfirmPickupRequestHandler)
-
 		router.Post("/recordpayment", invoice.RecordPaymentHandler)
 		router.Get("/outstanding", invoice.GetOutstandingInvoicesForDistributorHandler)
 	})
@@ -88,9 +86,9 @@ func Handler(r *chi.Mux) {
 		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesForSupervisorHandler)
 		router.Get("/resumptionlogs", reporting.GetResumptionLogsHandler)
 		router.Get("/outletvisits", reporting.GetOutletVisitsHandler)
-		router.Get("/auditlog", audit.GetAuditLogHandler)
 		router.Get("/sales", reporting.GetSalesHandler)
 		router.Get("/plannedvsactual", reporting.GetPlannedVsActualHandler)
 		router.Get("/routeefficiency", reporting.GetRouteEfficiencyHandler)
+		// no /auditlog here — audit stays admin-only per the brief
 	})
 }
