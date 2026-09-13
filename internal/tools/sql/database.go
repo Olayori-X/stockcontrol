@@ -69,6 +69,7 @@ type DatabaseInterface interface {
 
 	RecordPayment(invoiceID string, amount float64) (*models.Receipt, *models.Invoice, error)
 	GetOutstandingInvoices(distributorID string) ([]models.Invoice, error)
+	GetReceipts(distributorID string) ([]models.Receipt, error)
 
 	SetUserPIN(userID, pinHash string) error
 	GetUserPINLoginDetails(userID string) *PINLoginDetails

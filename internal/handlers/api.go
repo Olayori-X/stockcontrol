@@ -74,6 +74,7 @@ func Handler(r *chi.Mux) {
 		router.Post("/confirmrequest", pickup.ConfirmPickupRequestHandler)
 		router.Post("/recordpayment", invoice.RecordPaymentHandler)
 		router.Get("/outstanding", invoice.GetOutstandingInvoicesForDistributorHandler)
+		router.Get("/receipts", invoice.GetReceiptsForDistributorHandler)
 	})
 
 	r.Route("/supervisor", func(router chi.Router) {

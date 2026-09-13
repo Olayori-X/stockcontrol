@@ -451,3 +451,41 @@ func (db *RealDB) GetAvailableStock(salesAssociateID, sku string) (int, error) {
 
 	return pickedUp - sold, nil
 }
+
+// GetReceipts lists receipts for a distributor — joined against invoices
+// and pickup_requests to scope by distributor, since receipts have no
+// direct distributor_id column of their own.
+func (db *RealDB) GetReceipts(distributorID string) ([]models.Receipt, error) {
+	query := `
+		SELECT r.receipt_id, r.invoice_id, r.amount_paid, r.paid_at
+		FROM receipts r
+		JOIN invoices i ON i.invoice_id = r.invoice_id
+		JOIN pickup_requests pr ON pr.request_id = i.request_id
+	`
+	args := []interface{}{}
+	if distributorID != "" {
+		query += ` WHERE pr.distributor_id = $1`
+		args = append(args, distributorID)
+	}
+	query += ` ORDER BY r.paid_at DESC;`
+
+	rows, err := db.DB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch receipts: %w", err)
+	}
+	defer rows.Close()
+
+	receipts := make([]models.Receipt, 0)
+	for rows.Next() {
+		var r models.Receipt
+		if err := rows.Scan(&r.ReceiptID, &r.InvoiceID, &r.AmountPaid, &r.PaidAt); err != nil {
+			return nil, fmt.Errorf("could not scan receipt row: %w", err)
+		}
+		receipts = append(receipts, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return receipts, nil
+}
