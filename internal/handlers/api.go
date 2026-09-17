@@ -67,6 +67,8 @@ func Handler(r *chi.Mux) {
 		router.Get("/outlets", outlet.GetOutletsHandler)
 		router.Get("/myrouteplan", route.GetMyRoutePlanHandler)
 		router.Get("/mysales", outlet.GetMySalesHandler)
+		router.Get("/myinvoices", invoice.GetMyInvoicesHandler)
+		router.Get("/myreceipts", invoice.GetMyReceiptsHandler)
 	})
 
 	r.Route("/distributor", func(router chi.Router) {

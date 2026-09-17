@@ -489,3 +489,64 @@ func (db *RealDB) GetReceipts(distributorID string) ([]models.Receipt, error) {
 
 	return receipts, nil
 }
+
+func (db *RealDB) GetInvoicesForSalesAssociate(salesAssociateID string) ([]models.Invoice, error) {
+	rows, err := db.DB.Query(`
+		SELECT i.invoice_id, i.request_id, i.total_value, i.outstanding_value,
+		       i.status, i.due_at, i.created_at, i.updated_at
+		FROM invoices i
+		JOIN pickup_requests pr ON pr.request_id = i.request_id
+		WHERE pr.sales_associate_id = $1
+		ORDER BY i.created_at DESC;
+	`, salesAssociateID)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch invoices: %w", err)
+	}
+	defer rows.Close()
+
+	invoices := make([]models.Invoice, 0)
+	for rows.Next() {
+		var inv models.Invoice
+		if err := rows.Scan(
+			&inv.InvoiceID, &inv.RequestID, &inv.TotalValue, &inv.OutstandingValue,
+			&inv.Status, &inv.DueAt, &inv.CreatedAt, &inv.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("could not scan invoice row: %w", err)
+		}
+		invoices = append(invoices, inv)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return invoices, nil
+}
+
+func (db *RealDB) GetReceiptsForSalesAssociate(salesAssociateID string) ([]models.Receipt, error) {
+	rows, err := db.DB.Query(`
+		SELECT r.receipt_id, r.invoice_id, r.amount_paid, r.paid_at
+		FROM receipts r
+		JOIN invoices i ON i.invoice_id = r.invoice_id
+		JOIN pickup_requests pr ON pr.request_id = i.request_id
+		WHERE pr.sales_associate_id = $1
+		ORDER BY r.paid_at DESC;
+	`, salesAssociateID)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch receipts: %w", err)
+	}
+	defer rows.Close()
+
+	receipts := make([]models.Receipt, 0)
+	for rows.Next() {
+		var r models.Receipt
+		if err := rows.Scan(&r.ReceiptID, &r.InvoiceID, &r.AmountPaid, &r.PaidAt); err != nil {
+			return nil, fmt.Errorf("could not scan receipt row: %w", err)
+		}
+		receipts = append(receipts, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return receipts, nil
+}
