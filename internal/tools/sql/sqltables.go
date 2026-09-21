@@ -4,9 +4,49 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"sync"
 
 	_ "github.com/lib/pq"
 )
+
+var (
+	sharedDB   *sql.DB
+	sharedDBMu sync.Mutex
+)
+
+func getSharedDB() (*sql.DB, error) {
+	sharedDBMu.Lock()
+	defer sharedDBMu.Unlock()
+
+	if sharedDB != nil {
+		if err := sharedDB.Ping(); err == nil {
+			return sharedDB, nil
+		}
+	}
+
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		connStr = "postgres://postgres:secret@localhost:5432/fameduel?sslmode=disable"
+	}
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Stay well under PgBouncer's 15-client session-mode limit, leaving
+	// headroom for other tools/processes connecting to the same DB.
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	sharedDB = db
+	return sharedDB, nil
+}
 
 func (db *RealDB) SetupDatabase() error {
 	// In a real implementation, this would set up the database connection.
@@ -15,7 +55,7 @@ func (db *RealDB) SetupDatabase() error {
 	if connStr == "" {
 		connStr = "postgres://postgres:secret@localhost:5432/fameduel?sslmode=disable"
 	}
-	dbpointer, err := sql.Open("postgres", connStr)
+	dbpointer, err := getSharedDB()
 
 	if err != nil {
 		log.Fatal("Failed to connect to the database: ", err)
@@ -33,10 +73,6 @@ func (db *RealDB) SetupDatabase() error {
 	CreateUserTable(dbpointer)
 	CreateLoggedInUserTable(dbpointer)
 	CreateForgotPasswordTable(dbpointer)
-	AlterUsersTableAddPIN(dbpointer)
-	AlterUsersTableRelaxPasswordForSales(dbpointer)
-	AlterUsersTableAddSupervisorRole(dbpointer)
-	AlterLoggedInUsersTableAddSupervisorRole(dbpointer)
 
 	// ── SCS: pickups, products ──
 	CreatePickupRequestTable(dbpointer)
