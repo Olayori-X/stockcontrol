@@ -269,7 +269,6 @@ func (db *RealDB) GetOutlets(includeInactive bool, ownerID string) ([]models.Out
 	}
 
 	log.Infof("Fetched %d outlets for sales associate %s (includeInactive=%v)", len(outlets), ownerID, includeInactive)
-	log.Debugf("Outlets: %+v", outlets)
 	return outlets, nil
 }
 
