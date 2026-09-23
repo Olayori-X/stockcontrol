@@ -38,7 +38,5 @@ func GetMyOutletsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	log.Error("Failed to fetch outlets: ", err)
-	log.Infof("Fetched %d outlets for sales associate %s (includeInactive=%v)", len(outlets), salesAssociateID, false)
 	json.NewEncoder(w).Encode(outlets)
 }

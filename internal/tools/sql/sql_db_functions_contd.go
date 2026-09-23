@@ -245,7 +245,6 @@ func (db *RealDB) GetOutlets(includeInactive bool, ownerID string) ([]models.Out
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {
-		log.Error("Failed to fetch utlets: ", err)
 		return nil, fmt.Errorf("could not fetch outlets: %w", err)
 	}
 	defer rows.Close()
@@ -268,7 +267,6 @@ func (db *RealDB) GetOutlets(includeInactive bool, ownerID string) ([]models.Out
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
-	log.Infof("Fetched %d outlets for sales associate %s (includeInactive=%v)", len(outlets), ownerID, includeInactive)
 	return outlets, nil
 }
 
