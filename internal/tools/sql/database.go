@@ -48,7 +48,8 @@ type DatabaseInterface interface {
 	AddForgotPasswordRecord(userID, code string) error
 	ChangeUserPassword(email string, hashedPassword string) error
 	CreatePickupRequest(req *models.PickupRequest) error
-	ConfirmPickupRequest(requestID, distributorID string) (bool, *models.Invoice, error) // signature changed
+	ConfirmPickupRequest(requestID, distributorID string) (bool, *models.Invoice, error)
+	GetMyPickupRequests(salesAssociateID string) ([]models.PendingPickupRequest, error)
 	SearchDistributors(query string) ([]models.User, error)
 	GetPendingPickupRequests(distributorID string) ([]models.PendingPickupRequest, error)
 	GetUnacceptedPickupRequests(salesAssociateID string) ([]models.PendingPickupRequest, error)
