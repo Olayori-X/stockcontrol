@@ -68,7 +68,7 @@ type DatabaseInterface interface {
 	ApproveRoutePlan(salesAssociateID, routeDay string) (bool, error)
 
 	AddOutlet(outlet *models.Outlet) error
-	GetOutlets(includeInactive bool) ([]models.Outlet, error)
+	GetOutlets(includeInactive bool, ownerID string) ([]models.Outlet, error)
 	GetOutletByID(outletID string) (*models.Outlet, error)
 	EditOutlet(outlet *models.Outlet) (*models.Outlet, error)
 	SetOutletActive(outletID string, active bool) (bool, error)

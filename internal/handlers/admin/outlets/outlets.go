@@ -76,6 +76,7 @@ func GetOutletsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	includeInactive := r.URL.Query().Get("include_inactive") == "true"
+	salesID := r.URL.Query().Get("assigned_sales_associate_id")
 
 	database, err := sqltools.NewDatabase()
 	if err != nil {
@@ -84,7 +85,7 @@ func GetOutletsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	outlets, err := (*database).GetOutlets(includeInactive)
+	outlets, err := (*database).GetOutlets(includeInactive, salesID)
 	if err != nil {
 		log.Error("Failed to fetch outlets: ", err)
 		api.InternalErrorHandler(w)
