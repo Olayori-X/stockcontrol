@@ -3,7 +3,6 @@ package sqltools
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
@@ -208,16 +207,23 @@ func (db *RealDB) AddOutlet(outlet *models.Outlet) error {
 	return nil
 }
 
-func (db *RealDB) GetOutlets(includeInactive bool) ([]models.Outlet, error) {
+func (db *RealDB) GetOutlets(includeInactive bool, ownerID string) ([]models.Outlet, error) {
 	query := `
 		SELECT outlet_id, name, address, outlet_type, phone,
 		       latitude, longitude, area, zone,
 		       COALESCE(assigned_sales_associate_id, ''), COALESCE(route_day, ''), priority,
 		       active, created_at, updated_at
-		FROM outlets
+		FROM outlets WHERE 1=1
 	`
+	args := []interface{}{}
+	argN := 1
 	if !includeInactive {
-		query += ` WHERE active = TRUE`
+		query += ` AND active = TRUE`
+	}
+	if ownerID != "" {
+		query += fmt.Sprintf(` AND assigned_sales_associate_id = $%d`, argN)
+		args = append(args, ownerID)
+		argN++
 	}
 	query += ` ORDER BY name;`
 
@@ -453,20 +459,20 @@ func (db *RealDB) SubmitSale(salesAssociateID string, input *api.SubmitSaleInput
 	}
 	resumptionStatus := db.getTodaysResumptionStatus(salesAssociateID)
 
-	if sheetErr := appendSaleToSheet(&s, salesAssociateName, outlet, resumptionStatus); sheetErr != nil {
+	if sheetErr := db.appendSaleToSheet(&s, salesAssociateName, outlet, resumptionStatus); sheetErr != nil {
 		log.Error("failed to append sale to Google Sheet: ", sheetErr)
 	}
 
 	return &s, false, "", nil
 }
 
-func appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *models.Outlet, resumptionStatus string) error {
+func (db *RealDB) appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *models.Outlet, resumptionStatus string) error {
 	srv, err := getSheetsClient()
 	if err != nil {
 		return err
 	}
 
-	spreadsheetID := os.Getenv("SALES_SPREADSHEET_ID")
+	spreadsheetID, err := db.GetIntegrationSetting("SALES_SPREADSHEET_ID")
 	if spreadsheetID == "" {
 		return fmt.Errorf("SALES_SPREADSHEET_ID is not set")
 	}

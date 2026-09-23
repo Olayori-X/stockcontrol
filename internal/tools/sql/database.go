@@ -28,6 +28,14 @@ type CoinDetails struct {
 }
 
 type DatabaseInterface interface {
+	appendPickupRequestToSheet(req *models.PickupRequest, salesAssociateName, distributorName string) error
+	updateConfirmedInSheet(requestID string) error
+
+	appendSaleToSheet(sale *models.Sale, salesAssociateName string, outlet *models.Outlet, resumptionStatus string) error
+
+	SetIntegrationSetting(key, plaintext string) error
+	GetIntegrationSetting(key string) (string, error)
+
 	GetUserLoginDetails(username string) *LoginDetails
 	GetUserDetails(userID string) *models.User
 	AddUser(user *models.User) error

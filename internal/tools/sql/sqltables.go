@@ -69,6 +69,8 @@ func (db *RealDB) SetupDatabase() error {
 
 	db.DB = dbpointer
 
+	CreateIntegrationSettingTable(dbpointer)
+
 	// ── Core auth / users ──
 	CreateUserTable(dbpointer)
 	CreateLoggedInUserTable(dbpointer)
@@ -98,6 +100,22 @@ func (db *RealDB) SetupDatabase() error {
 	// ── Audit ──
 	CreateAuditLogTable(dbpointer)
 
+	return nil
+}
+
+func CreateIntegrationSettingTable(db *sql.DB) error {
+	query := `
+	CREATE TABLE IF NOT EXISTS integration_settings (
+		key VARCHAR(100) PRIMARY KEY,
+		encrypted_value TEXT NOT NULL,
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	_, err := db.Exec(query)
+	if err != nil {
+		log.Fatal("Could not create table: ", err)
+		return err
+	}
 	return nil
 }
 

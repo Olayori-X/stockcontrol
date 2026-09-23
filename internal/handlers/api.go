@@ -53,6 +53,8 @@ func Handler(r *chi.Mux) {
 		router.Get("/outsidecoverage", assignment.GetOutsideCoverageHandler)
 		router.Get("/outstandinginvoices", invoice.GetOutstandingInvoicesForSupervisorHandler)
 		router.Get("/auditlog", audit.GetAuditLogHandler) // moved here — admin-only, per brief
+		router.Post("/integrationsettings", admin.SetIntegrationSettingHandler)
+		router.Get("/integrationsettings", admin.GetIntegrationSettingsHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {

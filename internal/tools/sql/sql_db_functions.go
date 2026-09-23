@@ -26,6 +26,37 @@ type RealDB struct {
 	DB *sql.DB
 }
 
+func (db *RealDB) SetIntegrationSetting(key, plaintext string) error {
+	encrypted, err := functions.Encrypt(plaintext)
+	if err != nil {
+		return fmt.Errorf("could not encrypt setting: %w", err)
+	}
+
+	_, err = db.DB.Exec(`
+		INSERT INTO integration_settings (key, encrypted_value)
+		VALUES ($1, $2)
+		ON CONFLICT (key) DO UPDATE SET encrypted_value = $2, updated_at = CURRENT_TIMESTAMP;
+	`, key, encrypted)
+	if err != nil {
+		return fmt.Errorf("could not save setting: %w", err)
+	}
+	return nil
+}
+
+// GetIntegrationSetting returns "" (no error) if the key was never set —
+// callers decide whether that's fatal (spreadsheet sync) or fine (optional).
+func (db *RealDB) GetIntegrationSetting(key string) (string, error) {
+	var encrypted string
+	err := db.DB.QueryRow(`SELECT encrypted_value FROM integration_settings WHERE key = $1`, key).Scan(&encrypted)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", fmt.Errorf("could not fetch setting: %w", err)
+	}
+	return functions.Decrypt(encrypted)
+}
+
 func UserExists(db *RealDB, username string) (bool, error) {
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)`
@@ -370,7 +401,7 @@ func (db *RealDB) CreatePickupRequest(req *models.PickupRequest) error {
 		return fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	if err := appendPickupRequestToSheet(req, salesAssociateName, distributorName); err != nil {
+	if err := db.appendPickupRequestToSheet(req, salesAssociateName, distributorName); err != nil {
 		log.Error("failed to append pickup request to Google Sheet: ", err)
 	}
 
@@ -404,13 +435,13 @@ func getSheetsClient() (*sheets.Service, error) {
 	return sheetsClient, sheetsClientErr
 }
 
-func appendPickupRequestToSheet(req *models.PickupRequest, salesAssociateName, distributorName string) error {
+func (db *RealDB) appendPickupRequestToSheet(req *models.PickupRequest, salesAssociateName, distributorName string) error {
 	srv, err := getSheetsClient()
 	if err != nil {
 		return err
 	}
 
-	spreadsheetID := os.Getenv("PICKUP_REQUESTS_SPREADSHEET_ID")
+	spreadsheetID, err := db.GetIntegrationSetting("PICKUP_REQUESTS_SPREADSHEET_ID")
 	if spreadsheetID == "" {
 		return fmt.Errorf("PICKUP_REQUESTS_SPREADSHEET_ID is not set")
 	}
@@ -477,20 +508,20 @@ func (db *RealDB) ConfirmPickupRequest(requestID, distributorID string) (bool, *
 		return false, nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	if err := updateConfirmedInSheet(requestID); err != nil {
+	if err := db.updateConfirmedInSheet(requestID); err != nil {
 		log.Error("failed to update confirmed status in Google Sheet: ", err)
 	}
 
 	return true, invoice, nil
 }
 
-func updateConfirmedInSheet(requestID string) error {
+func (db *RealDB) updateConfirmedInSheet(requestID string) error {
 	srv, err := getSheetsClient()
 	if err != nil {
 		return err
 	}
 
-	spreadsheetID := os.Getenv("PICKUP_REQUESTS_SPREADSHEET_ID")
+	spreadsheetID, err := db.GetIntegrationSetting("PICKUP_REQUESTS_SPREADSHEET_ID")
 	if spreadsheetID == "" {
 		return fmt.Errorf("PICKUP_REQUESTS_SPREADSHEET_ID is not set")
 	}
