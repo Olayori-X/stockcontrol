@@ -245,6 +245,7 @@ func (db *RealDB) GetOutlets(includeInactive bool, ownerID string) ([]models.Out
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {
+		log.Error("Failed to fetch utlets: ", err)
 		return nil, fmt.Errorf("could not fetch outlets: %w", err)
 	}
 	defer rows.Close()

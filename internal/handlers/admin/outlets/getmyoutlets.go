@@ -18,12 +18,14 @@ func GetMyOutletsHandler(w http.ResponseWriter, r *http.Request) {
 
 	salesAssociateID := r.Header.Get("userid")
 	if salesAssociateID == "" {
+		log.Error("Failed to fetch outlets: ", errors.New("userid header is required"))
 		api.RequestErrorHandler(w, errors.New("userid header is required"))
 		return
 	}
 
 	database, err := sqltools.NewDatabase()
 	if err != nil {
+		log.Error("Internal error: ", err)
 		api.InternalErrorHandler(w)
 		return
 	}
