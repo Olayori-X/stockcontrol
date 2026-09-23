@@ -264,9 +264,12 @@ func (db *RealDB) GetOutlets(includeInactive bool, ownerID string) ([]models.Out
 		outlets = append(outlets, o)
 	}
 	if err := rows.Err(); err != nil {
+		log.Error("Failed to fetch utlets: ", err)
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
+	log.Infof("Fetched %d outlets for sales associate %s (includeInactive=%v)", len(outlets), ownerID, includeInactive)
+	log.Debugf("Outlets: %+v", outlets)
 	return outlets, nil
 }
 

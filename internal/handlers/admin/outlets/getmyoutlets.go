@@ -11,7 +11,6 @@ import (
 )
 
 func GetMyOutletsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Info("Fetching my outlets")
 	if r.Method != http.MethodGet {
 		api.RequestErrorHandler(w, errors.New("method not allowed"))
 		return
