@@ -227,7 +227,7 @@ func (db *RealDB) GetOutlets(includeInactive bool, ownerID string) ([]models.Out
 	}
 	query += ` ORDER BY name;`
 
-	rows, err := db.DB.Query(query)
+	rows, err := db.DB.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch outlets: %w", err)
 	}
