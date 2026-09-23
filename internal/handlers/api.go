@@ -41,6 +41,7 @@ func Handler(r *chi.Mux) {
 		router.Post("/routeplan", route.SetRoutePlanHandler)
 		router.Get("/routeplan", route.GetRoutePlanHandler)
 		router.Post("/routeplan/approve", route.ApproveRoutePlanHandler)
+		router.Delete("/routeplan", route.DeleteRoutePlanHandler)
 		router.Post("/addoutlet", outlet.AddOutletHandler)
 		router.Get("/outlets", outlet.GetOutletsHandler)
 		router.Get("/outletbyid", outlet.GetOutletByIDHandler)

@@ -181,6 +181,22 @@ func (db *RealDB) ApproveRoutePlan(salesAssociateID, routeDay string) (bool, err
 	return rowsAffected > 0, nil
 }
 
+func (db *RealDB) DeleteRoutePlan(salesAssociateID, routeDay string) (bool, error) {
+	result, err := db.DB.Exec(
+		`DELETE FROM route_plans WHERE sales_associate_id = $1 AND route_day = $2`,
+		salesAssociateID, routeDay,
+	)
+	if err != nil {
+		return false, fmt.Errorf("could not delete route plan: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("could not check rows affected: %w", err)
+	}
+	return rowsAffected > 0, nil
+}
+
 func (db *RealDB) AddOutlet(outlet *models.Outlet) error {
 	outletID := "OUT_" + uuid.NewString()
 

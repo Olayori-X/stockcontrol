@@ -566,6 +566,60 @@ func (db *RealDB) updateConfirmedInSheet(requestID string) error {
 	return nil
 }
 
+func (db *RealDB) GetMyPickupRequests(salesAssociateID string) ([]models.PendingPickupRequest, error) {
+	query := `
+		SELECT pr.request_id, pr.sales_associate_id, pr.distributor_id,
+		       pr.confirmed, pr.created_at, pr.updated_at, u.name
+		FROM pickup_requests pr
+		JOIN users u ON u.user_id = pr.distributor_id
+		WHERE pr.sales_associate_id = $1
+		ORDER BY pr.created_at DESC;
+	`
+	rows, err := db.DB.Query(query, salesAssociateID)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch pickup requests: %w", err)
+	}
+	defer rows.Close()
+
+	requests := make([]models.PendingPickupRequest, 0)
+	var requestIDs []string
+	for rows.Next() {
+		var req models.PendingPickupRequest
+		if err := rows.Scan(&req.RequestID, &req.SalesAssociateID, &req.DistributorID, &req.Confirmed, &req.CreatedAt, &req.UpdatedAt, &req.SalesAssociateName); err != nil {
+			return nil, fmt.Errorf("could not scan row: %w", err)
+		}
+		requests = append(requests, req)
+		requestIDs = append(requestIDs, req.RequestID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(requests) == 0 {
+		return requests, nil
+	}
+
+	itemRows, err := db.DB.Query(`SELECT request_id, sku, name, quantity FROM pickup_request_items WHERE request_id = ANY($1)`, pq.Array(requestIDs))
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch items: %w", err)
+	}
+	defer itemRows.Close()
+
+	itemsByRequest := make(map[string][]models.ProductItem)
+	for itemRows.Next() {
+		var requestID string
+		var item models.ProductItem
+		if err := itemRows.Scan(&requestID, &item.SKU, &item.Name, &item.Quantity); err != nil {
+			return nil, err
+		}
+		itemsByRequest[requestID] = append(itemsByRequest[requestID], item)
+	}
+
+	for i := range requests {
+		requests[i].Products = itemsByRequest[requests[i].RequestID]
+	}
+	return requests, nil
+}
+
 func (db *RealDB) GetPendingPickupRequests(distributorID string) ([]models.PendingPickupRequest, error) {
 	query := `
 		SELECT pr.request_id, pr.sales_associate_id, pr.distributor_id,

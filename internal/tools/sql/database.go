@@ -66,6 +66,7 @@ type DatabaseInterface interface {
 	SetRoutePlan(salesAssociateID, routeDay string, outletIDs []string) error
 	GetRoutePlan(salesAssociateID, routeDay string) (*models.RoutePlan, error)
 	ApproveRoutePlan(salesAssociateID, routeDay string) (bool, error)
+	DeleteRoutePlan(salesAssociateID, routeDay string) (bool, error)
 
 	AddOutlet(outlet *models.Outlet) error
 	GetOutlets(includeInactive bool, ownerID string) ([]models.Outlet, error)
