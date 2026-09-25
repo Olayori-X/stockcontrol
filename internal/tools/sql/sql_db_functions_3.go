@@ -11,12 +11,11 @@ import (
 )
 
 func (db *RealDB) createInvoiceForPickup(tx *sql.Tx, requestID string) (*models.Invoice, error) {
-	var total float64
+	var total int
 	err := tx.QueryRow(`
-		SELECT COALESCE(SUM(pri.quantity * p.price), 0)
-		FROM pickup_request_items pri
-		JOIN products p ON p.sku = pri.sku
-		WHERE pri.request_id = $1
+		SELECT COALESCE(SUM(quantity), 0)
+		FROM pickup_request_items
+		WHERE request_id = $1
 	`, requestID).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("could not compute invoice total: %w", err)
