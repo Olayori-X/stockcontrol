@@ -486,11 +486,13 @@ func (db *RealDB) ConfirmPickupRequest(requestID, distributorID string) (bool, *
 		WHERE request_id = $1 AND distributor_id = $2 AND confirmed = FALSE;
 	`, requestID, distributorID)
 	if err != nil {
+		log.Error("Failed to confirm pickup request: ", err)
 		return false, nil, fmt.Errorf("could not confirm pickup request: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		log.Error("Failed to check rows affected: ", err)
 		return false, nil, fmt.Errorf("could not check rows affected: %w", err)
 	}
 
@@ -501,16 +503,20 @@ func (db *RealDB) ConfirmPickupRequest(requestID, distributorID string) (bool, *
 
 	invoice, err := db.createInvoiceForPickup(tx, requestID)
 	if err != nil {
+		log.Error("Failed to create invoice for confirmed pickup: ", err)
 		return false, nil, fmt.Errorf("could not create invoice for confirmed pickup: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
+		log.Error("Failed to commit transaction: ", err)
 		return false, nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	if err := db.updateConfirmedInSheet(requestID); err != nil {
 		log.Error("failed to update confirmed status in Google Sheet: ", err)
 	}
+
+	log.Error("Pickup request confirmed: ", requestID, " Invoice created: ", invoice.InvoiceID)
 
 	return true, invoice, nil
 }
