@@ -523,7 +523,7 @@ func (db *RealDB) appendSaleToSheet(sale *models.Sale, salesAssociateName string
 	valueRange := &sheets.ValueRange{Values: [][]interface{}{row}}
 
 	_, err = srv.Spreadsheets.Values.Append(
-		spreadsheetID, "Sheet1!A1",
+		spreadsheetID, "Sales!A1",
 		valueRange,
 	).ValueInputOption("RAW").InsertDataOption("INSERT_ROWS").Do()
 	if err != nil {

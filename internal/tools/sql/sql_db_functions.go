@@ -463,7 +463,7 @@ func (db *RealDB) appendPickupRequestToSheet(req *models.PickupRequest, salesAss
 	valueRange := &sheets.ValueRange{Values: rows}
 
 	_, err = srv.Spreadsheets.Values.Append(
-		spreadsheetID, "Sheet1!A1",
+		spreadsheetID, "Pickup Requests!A1",
 		valueRange,
 	).ValueInputOption("RAW").InsertDataOption("INSERT_ROWS").Do()
 	if err != nil {
@@ -526,7 +526,7 @@ func (db *RealDB) updateConfirmedInSheet(requestID string) error {
 		return fmt.Errorf("PICKUP_REQUESTS_SPREADSHEET_ID is not set")
 	}
 
-	resp, err := srv.Spreadsheets.Values.Get(spreadsheetID, "Sheet1!A:A").Do()
+	resp, err := srv.Spreadsheets.Values.Get(spreadsheetID, "Pickup Requests!A:A").Do()
 	if err != nil {
 		return fmt.Errorf("could not read sheet to find request rows: %w", err)
 	}
@@ -548,7 +548,7 @@ func (db *RealDB) updateConfirmedInSheet(requestID string) error {
 	var data []*sheets.ValueRange
 	for _, rowNum := range matchingRows {
 		data = append(data, &sheets.ValueRange{
-			Range:  fmt.Sprintf("Sheet1!G%d", rowNum),
+			Range:  fmt.Sprintf("Pickup Requests!G%d", rowNum),
 			Values: [][]interface{}{{true}},
 		})
 	}
