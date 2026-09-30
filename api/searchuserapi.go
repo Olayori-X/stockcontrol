@@ -52,7 +52,7 @@ func ToUserSummary(u models.User) UserSummary {
 		Email:     u.Email,
 		Phone:     u.Phone,
 		Role:      u.Role,
-		Verified:  u.Verified,
+		Verified:  true,
 		Active:    u.Active,
 		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
