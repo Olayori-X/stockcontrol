@@ -45,14 +45,18 @@ type DatabaseInterface interface {
 	UpdateUserCode(userID string, hashedCode string) error
 	UserLoggedIn(userid string) *AuthenticatedUser
 	UpdateUserProfile(user models.User) error
+	EditUser(userID, name, email, phone string) (*models.User, error)
+	SetUserActive(userID string, active bool) (bool, error)
 	AddForgotPasswordRecord(userID, code string) error
 	ChangeUserPassword(email string, hashedPassword string) error
+
 	CreatePickupRequest(req *models.PickupRequest) error
 	ConfirmPickupRequest(requestID, distributorID string) (bool, *models.Invoice, error)
 	GetMyPickupRequests(salesAssociateID string) ([]models.PendingPickupRequest, error)
 	SearchDistributors(query string) ([]models.User, error)
 	GetPendingPickupRequests(distributorID string) ([]models.PendingPickupRequest, error)
 	GetUnacceptedPickupRequests(salesAssociateID string) ([]models.PendingPickupRequest, error)
+
 	AddProduct(product models.Products) error
 	GetProducts() ([]models.Products, error)
 	GetProductBySKU(sku string) (*models.Products, error)

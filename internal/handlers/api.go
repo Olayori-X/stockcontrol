@@ -57,6 +57,8 @@ func Handler(r *chi.Mux) {
 		router.Post("/integrationsettings", admin.SetIntegrationSettingHandler)
 		router.Get("/integrationsettings", admin.GetIntegrationSettingsHandler)
 		router.Get("/searchdistributor", pickup.SearchDistributorsHandler)
+		router.Put("/edituser", admin.EditUserHandler)
+		router.Delete("/deactivateuser", admin.SetUserActiveHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {

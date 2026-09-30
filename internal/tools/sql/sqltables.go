@@ -75,6 +75,7 @@ func (db *RealDB) SetupDatabase() error {
 	CreateUserTable(dbpointer)
 	CreateLoggedInUserTable(dbpointer)
 	CreateForgotPasswordTable(dbpointer)
+	AlterUsersTableAddActive(dbpointer)
 
 	// ── SCS: pickups, products ──
 	CreatePickupRequestTable(dbpointer)
@@ -159,12 +160,11 @@ func DeleteUserTable(db *sql.DB) error {
 	return nil
 }
 
-func AlterUsersTable(db *sql.DB) error {
+func AlterUsersTableAddActive(db *sql.DB) error {
 	query := `
-		ALTER TABLE users 
-		ADD COLUMN IF NOT EXISTS rank INT NOT NULL DEFAULT 0 CHECK (rank >= 0);
+		ALTER TABLE users
+		ADD COLUMN IF NOT EXISTS active BOOL NOT NULL DEFAULT TRUE;
 	`
-
 	_, err := db.Exec(query)
 	if err != nil {
 		log.Fatal("Could not alter table: ", err)

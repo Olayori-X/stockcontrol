@@ -111,7 +111,7 @@ func (db *RealDB) GetUserLoginDetails(email string) *LoginDetails {
 	query := `
 	SELECT user_id, password, role, verified
 	FROM users
-	WHERE email = $1;`
+	WHERE email = $1 AND active = TRUE;`
 
 	var userID, role string
 	var password sql.NullString // password may now be NULL for sales
@@ -195,6 +195,43 @@ func derefOrEmpty(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func (db *RealDB) EditUser(userID, name, email, phone string) (*models.User, error) {
+	query := `
+		UPDATE users
+		SET name = $2, email = $3, phone = $4, updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = $1
+		RETURNING user_id, name, email, phone, role, verified, active, created_at, updated_at;
+	`
+
+	var u models.User
+	err := db.DB.QueryRow(query, userID, name, email, phone).Scan(
+		&u.UserID, &u.Name, &u.Email, &u.Phone, &u.Role, &u.Verified, &u.Active, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not update user: %w", err)
+	}
+	return &u, nil
+}
+
+func (db *RealDB) SetUserActive(userID string, active bool) (bool, error) {
+	result, err := db.DB.Exec(
+		`UPDATE users SET active = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1`,
+		userID, active,
+	)
+	if err != nil {
+		return false, fmt.Errorf("could not update user status: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("could not check rows affected: %w", err)
+	}
+	return rowsAffected > 0, nil
 }
 
 func (db *RealDB) UpdateUserCode(userID string, hashedCode string) error {

@@ -9,6 +9,7 @@ type User struct {
 	Phone     string    `db:"phone" json:"phone"`
 	Password  *string   `db:"password" json:"-"`
 	Role      string    `db:"role" json:"role"`
+	Active    bool      `db:"active" json:"active"`
 	Verified  bool      `db:"verified" json:"verified"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`

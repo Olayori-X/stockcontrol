@@ -195,7 +195,7 @@ func (db *RealDB) GetUserPINLoginDetails(userID string) *PINLoginDetails {
 	query := `
 	SELECT user_id, pin_hash, role, verified
 	FROM users
-	WHERE email = $1 AND pin_hash IS NOT NULL;`
+	WHERE user_id = $1 AND pin_hash IS NOT NULL AND active = TRUE;`
 
 	var uid, pinHash, role string
 	var verified bool
