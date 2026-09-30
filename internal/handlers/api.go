@@ -56,6 +56,7 @@ func Handler(r *chi.Mux) {
 		router.Get("/auditlog", audit.GetAuditLogHandler) // moved here — admin-only, per brief
 		router.Post("/integrationsettings", admin.SetIntegrationSettingHandler)
 		router.Get("/integrationsettings", admin.GetIntegrationSettingsHandler)
+		router.Get("/searchdistributor", pickup.SearchDistributorsHandler)
 	})
 
 	r.Route("/sales", func(router chi.Router) {
@@ -75,6 +76,7 @@ func Handler(r *chi.Mux) {
 		router.Post("/addoutlet", outlet.CreateMyOutletHandler)
 		router.Get("/myoutlets", outlet.GetMyOutletsHandler)
 		router.Get("/mypickuprequests", pickup.GetMyPickupRequestsHandler)
+		router.Delete("/deleteoutlet", outlet.DeactivateMyOutletHandler)
 	})
 
 	r.Route("/distributor", func(router chi.Router) {
