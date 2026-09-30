@@ -39,19 +39,6 @@ type UserSummary struct {
 	CreatedAt string `json:"created_at"`
 }
 
-func toUserSummary(u models.User) UserSummary {
-	return UserSummary{
-		UserID:    u.UserID,
-		Name:      u.Name,
-		Email:     u.Email,
-		Phone:     u.Phone,
-		Role:      u.Role,
-		Verified:  u.Verified,
-		Active:    u.Active,
-		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}
-}
-
 type GroupedUsersResponse struct {
 	Admins       []UserSummary `json:"admins"`
 	Sales        []UserSummary `json:"sales"`
@@ -65,7 +52,8 @@ func ToUserSummary(u models.User) UserSummary {
 		Email:     u.Email,
 		Phone:     u.Phone,
 		Role:      u.Role,
-		Verified:  true,
+		Verified:  u.Verified,
+		Active:    u.Active,
 		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
