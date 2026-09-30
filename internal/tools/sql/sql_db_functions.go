@@ -940,6 +940,7 @@ func (db *RealDB) GetUsers() ([]models.User, error) {
 			return nil, err
 		}
 		users = append(users, u)
+		log.Printf("Fetched user: %+v", u)
 	}
 
 	if err := rows.Err(); err != nil {
