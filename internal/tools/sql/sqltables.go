@@ -75,7 +75,7 @@ func (db *RealDB) SetupDatabase() error {
 	CreateUserTable(dbpointer)
 	CreateLoggedInUserTable(dbpointer)
 	CreateForgotPasswordTable(dbpointer)
-	AlterUsersTableAddActive(dbpointer)
+	BackfillUsersActive(dbpointer)
 
 	// ── SCS: pickups, products ──
 	CreatePickupRequestTable(dbpointer)
@@ -160,14 +160,11 @@ func DeleteUserTable(db *sql.DB) error {
 	return nil
 }
 
-func AlterUsersTableAddActive(db *sql.DB) error {
-	query := `
-		ALTER TABLE users
-		ADD COLUMN IF NOT EXISTS active BOOL NOT NULL DEFAULT TRUE;
-	`
+func BackfillUsersActive(db *sql.DB) error {
+	query := `UPDATE users SET active = TRUE WHERE active = FALSE OR active IS NULL;`
 	_, err := db.Exec(query)
 	if err != nil {
-		log.Fatal("Could not alter table: ", err)
+		log.Fatal("Could not backfill users.active: ", err)
 		return err
 	}
 	return nil
