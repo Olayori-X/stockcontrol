@@ -909,6 +909,7 @@ func (db *RealDB) GetUsers() ([]models.User, error) {
 		email, 
 		phone,
 		role,
+		active,
 		password,
 		created_at, 
 		updated_at
@@ -930,6 +931,7 @@ func (db *RealDB) GetUsers() ([]models.User, error) {
 			&u.Email,
 			&u.Phone,
 			&u.Role,
+			&u.Active,
 			&u.Password,
 			&u.CreatedAt,
 			&u.UpdatedAt,
