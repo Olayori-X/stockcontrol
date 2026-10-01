@@ -3,7 +3,6 @@ package sqltools
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
@@ -196,14 +195,13 @@ func (db *RealDB) GetUserPINLoginDetails(userID string) *PINLoginDetails {
 	query := `
 	SELECT user_id, pin_hash, role, verified
 	FROM users
-	WHERE user_id = $1 AND pin_hash IS NOT NULL AND active = TRUE;`
+	WHERE email = $1 AND pin_hash IS NOT NULL AND active = TRUE;`
 
 	var uid, pinHash, role string
 	var verified bool
 
 	err := db.DB.QueryRow(query, userID).Scan(&uid, &pinHash, &role, &verified)
 	if err != nil {
-		log.Printf("GetUserPINLoginDetails: user %s not found or has no PIN: %v", userID, err)
 		return nil
 	}
 
