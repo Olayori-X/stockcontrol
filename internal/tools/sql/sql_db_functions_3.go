@@ -3,6 +3,7 @@ package sqltools
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -202,6 +203,7 @@ func (db *RealDB) GetUserPINLoginDetails(userID string) *PINLoginDetails {
 
 	err := db.DB.QueryRow(query, userID).Scan(&uid, &pinHash, &role, &verified)
 	if err != nil {
+		log.Printf("GetUserPINLoginDetails: user %s not found or has no PIN: %v", userID, err)
 		return nil
 	}
 
